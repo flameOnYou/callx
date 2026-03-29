@@ -1,7 +1,7 @@
 #!/bin/bash
 # call — 快速切换 AI 运行环境的 Wrapper（支持 claude / opencode）
 
-CONFIG_BASE="$HOME/code/callx"
+CONFIG_BASE="$HOME/.callx"
 SPIRITS_DIR="$CONFIG_BASE/spirits"
 SKILL_PACKS="$CONFIG_BASE/skill-packs"
 PROVIDERS_FILE="$CONFIG_BASE/providers.json"
@@ -86,7 +86,10 @@ if model:
 if agent_cfg.get("autoupdate"):
     oc_cfg["autoupdate"] = agent_cfg["autoupdate"]
 
-if agent_cfg.get("skills"):
+# 有 skill_links 时自动注入 skills.paths，无需手动配置
+if agent_cfg.get("skill_links"):
+    oc_cfg["skills"] = {"paths": ["./skills"]}
+elif agent_cfg.get("skills"):
     oc_cfg["skills"] = agent_cfg["skills"]
 
 # 注入 provider 认证信息

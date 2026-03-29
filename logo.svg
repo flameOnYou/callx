@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#6C3CE1"/>
+      <stop offset="100%" stop-color="#3B82F6"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#C4B5FD" stop-opacity="0.25"/>
+      <stop offset="100%" stop-color="#6C3CE1" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- 圆角背景 -->
+  <rect width="512" height="512" rx="108" fill="url(#bg)"/>
+
+  <!-- 光晕 -->
+  <circle cx="256" cy="248" r="220" fill="url(#glow)"/>
+
+  <!-- 电话图标 -->
+  <g transform="translate(246, 244)">
+    <!-- 听筒弧线 -->
+    <path d="M-90 38 C-90 38 -105 -20 -80 -65 C-55 -110 -18 -118 0 -118 C18 -118 55 -110 80 -65 C105 -20 90 38 90 38"
+          fill="none" stroke="white" stroke-width="28" stroke-linecap="round"/>
+    <!-- 左耳 -->
+    <rect x="-112" y="16" width="46" height="72" rx="23" fill="white"/>
+    <!-- 右耳 -->
+    <rect x="66" y="16" width="46" height="72" rx="23" fill="white"/>
+  </g>
+
+  <!-- 信号波纹 -->
+  <g transform="translate(246, 244)" fill="none" stroke="white" stroke-linecap="round">
+    <path d="M108 -86 A58 58 0 0 1 136 -30" stroke-width="10" opacity="0.9"/>
+    <path d="M122 -112 A88 88 0 0 1 166 -30" stroke-width="10" opacity="0.5"/>
+    <path d="M136 -138 A118 118 0 0 1 196 -30" stroke-width="10" opacity="0.25"/>
+  </g>
+
+  <!-- 星星点缀 -->
+  <g transform="translate(90, 110)">
+    <line x1="0" y1="-14" x2="0" y2="14" stroke="white" stroke-width="4" stroke-linecap="round" opacity="0.7"/>
+    <line x1="-14" y1="0" x2="14" y2="0" stroke="white" stroke-width="4" stroke-linecap="round" opacity="0.7"/>
+  </g>
+  <g transform="translate(410, 400)">
+    <line x1="0" y1="-10" x2="0" y2="10" stroke="white" stroke-width="3" stroke-linecap="round" opacity="0.45"/>
+    <line x1="-10" y1="0" x2="10" y2="0" stroke="white" stroke-width="3" stroke-linecap="round" opacity="0.45"/>
+  </g>
+  <circle cx="120" cy="400" r="4.5" fill="white" opacity="0.4"/>
+  <circle cx="405" cy="120" r="5.5" fill="white" opacity="0.5"/>
+</svg>

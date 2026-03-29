@@ -1,6 +1,6 @@
 ---
-name: msmtp-email
-description: 使用 Python 生成 MIME 邮件并通过 msmtp 发送。默认收件人为 songyu19@outlook.com；只有明确指定 --to 时才发送给其他人。未特别说明时，内容直接作为邮件正文发送，不默认转成附件。失败时只重试同一种发送方式，不切换到其他命令。
+name: send-email
+description: 使用 Python 生成 MIME 邮件并通过 msmtp 发送。默认收件人为 your@email.com；只有明确指定 --to 时才发送给其他人。未特别说明时，内容直接作为邮件正文发送，不默认转成附件。失败时只重试同一种发送方式，不切换到其他命令。
 allowed-tools:
   - Bash(*)
 ---
@@ -25,7 +25,7 @@ python3 ./scripts/send_email_stable.py \
 |------|------|--------|------|
 | `--subject` | 是 | — | 邮件主题 |
 | `--body` | 是 | — | 邮件正文（默认就是正文，不会自动转附件） |
-| `--to` | 否 | `songyu19@outlook.com` | 收件人，支持多个逗号分隔 |
+| `--to` | 否 | `your@email.com` | 收件人，支持多个逗号分隔 |
 | `--attachments` | 否 | — | 附件路径，空格分隔多个 |
 | `--retries` | 否 | `3` | 发送失败总尝试次数 |
 | `--timeout` | 否 | `30` | 单次超时秒数 |
@@ -53,7 +53,7 @@ python3 ./scripts/send_email_stable.py \
 
 ## 规范
 
-- 未显式指定收件人时，默认发送到 `songyu19@outlook.com`
+- 未显式指定收件人时，默认发送到 `your@email.com`
 - 未显式要求附件时，`--body` 内容直接作为正文，不落盘、不转附件
 - 发送失败时继续使用同一脚本重试，不切换到 `mail`、`curl` 等其他方式
 
