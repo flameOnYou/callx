@@ -14,11 +14,5 @@ __pycache__/
 *.pyc
 *.pyo
 
-# 本地智能体（不推送到远程）
-spirits/agent01/
-spirits/agent-claude/
-spirits/deepseek01/
-spirits/week-report/
-
 # Claude Code 运行时文件
 .claude/

@@ -23,7 +23,7 @@
 
 直到今晚有感，才终于明白——
 
-**call**，召唤。
+召唤,或者说, 请神!
 
 每一个 AI，都是一个可以被召唤的灵。它们各有性格，各有所长，等待着被呼唤，等待着去完成某件事。这个项目，就是那个召唤台。
 
@@ -93,7 +93,7 @@ cp ~/.callx/providers.example.json ~/.callx/providers.json
 **2. 设置默认智能体**
 
 ```bash
-call -d agent01
+call -d open-01
 ```
 
 ---
@@ -102,7 +102,7 @@ call -d agent01
 
 ```bash
 call              # 召唤默认智能体
-call week-report  # 召唤指定智能体
+call claude-01   # 召唤指定智能体
 call -l           # 查看所有可召唤的智能体
 ```
 
@@ -133,10 +133,8 @@ call -l           # 查看所有可召唤的智能体
 │   ├── code-skill/         # 代码质量检查技能（示例）
 │   └── send-email/         # msmtp 邮件发送技能
 ├── spirits/                # 所有智能体运行环境
-│   ├── agent01/            # OpenCode + DeepSeek 通用环境
-│   ├── agent-claude/       # Claude CLI 环境（MiniMax 兼容接口）
-│   ├── deepseek01/         # OpenCode + DeepSeek（含技能链接）
-│   └── week-report/        # 周报专用环境（含技能链接）
+│   ├── claude-01/          # Claude Code 智能体示例
+│   └── open-01/            # OpenCode 智能体示例
 ├── .default                # 记录当前默认环境名
 └── README.md
 ```
