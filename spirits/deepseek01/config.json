@@ -1,0 +1,10 @@
+{
+  "cli": "opencode",
+  "provider": "deepseek",
+  "model": "deepseek/deepseek-chat",
+  "autoupdate": true,
+  "skill_links": ["deepseek-skill"],
+  "skills": {
+    "paths": ["./skills"]
+  }
+}

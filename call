@@ -1,0 +1,333 @@
+#!/bin/bash
+# call — 快速切换 AI 运行环境的 Wrapper（支持 claude / opencode）
+
+CONFIG_BASE="$HOME/code/callx"
+SPIRITS_DIR="$CONFIG_BASE/spirits"
+SKILL_PACKS="$CONFIG_BASE/skill-packs"
+PROVIDERS_FILE="$CONFIG_BASE/providers.json"
+PROFILE=""
+AUTO_MODE=0
+FORWARD_ARGS=()
+
+# 从平铺 JSON 中读取 string 类型的 key（纯 bash，无需 jq）
+json_val() {
+  local key="$1" file="$2"
+  grep -o "\"$key\"[[:space:]]*:[[:space:]]*\"[^\"]*\"" "$file" \
+    | head -1 | sed 's/.*:[[:space:]]*"\([^"]*\)"/\1/'
+}
+
+# 从 providers.json 中读取指定 provider 的某个字段
+# 用法: provider_val <provider_name> <field>
+provider_val() {
+  local provider="$1" field="$2"
+  python3 - "$PROVIDERS_FILE" "$provider" "$field" <<'PY'
+import json, sys
+try:
+    data = json.load(open(sys.argv[1]))
+    print(data.get(sys.argv[2], {}).get(sys.argv[3], ""))
+except Exception:
+    print("")
+PY
+}
+
+# 检查 providers.json 是否存在
+check_providers() {
+  if [ ! -f "$PROVIDERS_FILE" ]; then
+    echo "错误: 未找到 $PROVIDERS_FILE"
+    echo "请复制 providers.example.json 为 providers.json 并填入 API Key"
+    exit 1
+  fi
+}
+
+# 获取 agent 的 CLI 类型（优先从 config.json 的 cli 字段读，回退 opencode）
+get_cli() {
+  local profile="$1"
+  local config="$SPIRITS_DIR/$profile/config.json"
+  if [ -f "$config" ]; then
+    local cli
+    cli=$(json_val cli "$config")
+    echo "${cli:-opencode}"
+  else
+    echo "opencode"
+  fi
+}
+
+# 构建 OpenCode 运行时配置（动态注入 provider/model/apiKey/baseURL）
+build_opencode_config() {
+  local profile="$1"
+  local config_file="$SPIRITS_DIR/$profile/config.json"
+
+  python3 - "$config_file" "$PROVIDERS_FILE" "$AUTO_MODE" <<'PY'
+import json, sys, pathlib
+
+config_path = pathlib.Path(sys.argv[1])
+providers_path = pathlib.Path(sys.argv[2])
+auto_mode = sys.argv[3] == "1"
+
+# 读 agent config
+agent_cfg = {}
+if config_path.is_file():
+    agent_cfg = json.loads(config_path.read_text(encoding="utf-8"))
+
+# 读 providers
+providers = {}
+if providers_path.is_file():
+    providers = json.loads(providers_path.read_text(encoding="utf-8"))
+
+provider_name = agent_cfg.get("provider", "")
+model = agent_cfg.get("model", "")
+
+# 构建 OpenCode 格式的完整 config
+oc_cfg = {"$schema": "https://opencode.ai/config.json"}
+
+if model:
+    oc_cfg["model"] = model
+
+if agent_cfg.get("autoupdate"):
+    oc_cfg["autoupdate"] = agent_cfg["autoupdate"]
+
+if agent_cfg.get("skills"):
+    oc_cfg["skills"] = agent_cfg["skills"]
+
+# 注入 provider 认证信息
+if provider_name and provider_name in providers:
+    prov = providers[provider_name]
+    base_url = prov.get("base_url", "")
+    api_key = prov.get("api_key", "")
+    fmt = prov.get("format", "openai")
+
+    if fmt == "anthropic":
+        # Anthropic 格式：provider key 固定为 "anthropic"
+        oc_cfg["provider"] = {
+            "anthropic": {
+                "options": {
+                    "apiKey": api_key,
+                    "baseURL": base_url
+                }
+            }
+        }
+    else:
+        # OpenAI 兼容格式：provider key 为提供商名
+        oc_cfg["provider"] = {
+            provider_name: {
+                "options": {
+                    "baseURL": base_url,
+                    "apiKey": api_key
+                }
+            }
+        }
+
+if auto_mode:
+    oc_cfg["permission"] = "allow"
+
+print(json.dumps(oc_cfg, ensure_ascii=False))
+PY
+}
+
+show_help() {
+  cat <<EOF
+call — AI 环境切换工具（支持 claude / opencode）
+
+用法:
+  call [选项] [环境名] [-- 参数...]
+
+选项:
+  -l, --list          列出所有可用环境
+  -d, --default <名>  设置默认环境
+  -a, --auto          自动执行模式：claude 免确认，opencode 权限设为 allow
+  -s, --show          显示当前环境配置
+  -h, --help          显示帮助
+
+示例:
+  call -a agent-claude      使用 agent-claude 并开启自动执行
+  call deepseek01 -a run hi 使用 deepseek01 并开启自动执行
+  call agent-claude         使用 agent-claude 环境启动 claude
+  call deepseek01           使用 deepseek01 环境启动 opencode
+  call agent01 run "hi"     使用 agent01 环境执行命令
+  call -l                   列出所有环境
+  call -d agent01           设为默认环境
+  call                      使用默认环境启动
+EOF
+}
+
+list_envs() {
+  echo "可用环境:"
+  for d in "$SPIRITS_DIR"/*/; do
+    [ -d "$d" ] || continue
+    name=$(basename "$d")
+    cli=$(get_cli "$name")
+    provider=$(json_val provider "$SPIRITS_DIR/$name/config.json" 2>/dev/null)
+    model=$(json_val model "$SPIRITS_DIR/$name/config.json" 2>/dev/null)
+    printf "  %-20s [%-10s] provider=%-12s model=%s\n" "$name" "$cli" "${provider:--}" "${model:--}"
+  done
+}
+
+get_default() {
+  [ -f "$CONFIG_BASE/.default" ] && cat "$CONFIG_BASE/.default"
+}
+
+set_default() {
+  local name="$1"
+  if [ ! -d "$SPIRITS_DIR/$name" ]; then
+    echo "错误: 环境 '$name' 不存在"
+    exit 1
+  fi
+  echo "$name" > "$CONFIG_BASE/.default"
+  echo "已设为默认环境: $name"
+}
+
+show_current() {
+  local cur="${PROFILE:-$(get_default)}"
+  if [ -z "$cur" ]; then
+    echo "未设置环境，请先使用 call -d <名> 或 call <名>"
+  else
+    local cli provider model
+    cli=$(get_cli "$cur")
+    provider=$(json_val provider "$SPIRITS_DIR/$cur/config.json" 2>/dev/null)
+    model=$(json_val model "$SPIRITS_DIR/$cur/config.json" 2>/dev/null)
+    echo "当前环境: $cur"
+    echo "  CLI:      $cli"
+    echo "  Provider: ${provider:--}"
+    echo "  Model:    ${model:--}"
+    if [ -n "$provider" ] && [ -f "$PROVIDERS_FILE" ]; then
+      local base_url
+      base_url=$(provider_val "$provider" base_url)
+      echo "  Base URL: ${base_url:--}"
+      echo "  Key:      (stored in providers.json)"
+    fi
+  fi
+}
+
+# 同步技能软链接：根据 config.json 的 skill_links 字段在 <env>/skills/ 下建链
+sync_skills() {
+  local profile="$1"
+  local config_file="$SPIRITS_DIR/$profile/config.json"
+  local skills_dir="$SPIRITS_DIR/$profile/skills"
+
+  python3 - "$config_file" "$SKILL_PACKS" "$skills_dir" <<'PY'
+import json, os, sys, pathlib
+
+config_path = pathlib.Path(sys.argv[1])
+skill_packs = pathlib.Path(sys.argv[2])
+skills_dir  = pathlib.Path(sys.argv[3])
+
+if not config_path.is_file():
+    sys.exit(0)
+
+cfg = json.loads(config_path.read_text(encoding="utf-8"))
+skill_links = cfg.get("skill_links", [])
+
+skills_dir.mkdir(parents=True, exist_ok=True)
+
+# 清理不在 skill_links 中的旧软链接
+for entry in skills_dir.iterdir():
+    if entry.is_symlink() and entry.name not in skill_links:
+        entry.unlink()
+
+# 建链
+for skill in skill_links:
+    target = skill_packs / skill
+    if not target.exists():
+        print(f"警告: skill-packs 中不存在技能 '{skill}'，跳过", flush=True)
+        continue
+    link = skills_dir / skill
+    if link.is_symlink():
+        link.unlink()
+    os.symlink(target, link)
+PY
+}
+
+# 解析参数
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -l|--list)  list_envs; exit 0 ;;
+    -d|--default) PROFILE="$2"; set_default "$2"; exit 0 ;;
+    -a|--auto) AUTO_MODE=1; shift ;;
+    -s|--show)  show_current; exit 0 ;;
+    -h|--help)  show_help; exit 0 ;;
+    --)         shift; break ;;
+    -*)         echo "未知选项: $1"; show_help; exit 1 ;;
+    *)          PROFILE="$1"; shift; break ;;
+  esac
+done
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -a|--auto)
+      AUTO_MODE=1
+      ;;
+    --)
+      shift
+      FORWARD_ARGS+=("$@")
+      break
+      ;;
+    *)
+      FORWARD_ARGS+=("$1")
+      ;;
+  esac
+  shift
+done
+
+# 确定环境
+if [ -z "$PROFILE" ]; then
+  PROFILE=$(get_default)
+  if [ -z "$PROFILE" ]; then
+    echo "错误: 未指定环境，也未设置默认环境"
+    echo "使用 call -l 查看可用环境，call -d <名> 设为默认"
+    exit 1
+  fi
+fi
+
+if [ ! -d "$SPIRITS_DIR/$PROFILE" ]; then
+  echo "错误: 环境 '$PROFILE' 不存在"
+  echo "使用 call -l 查看可用环境"
+  exit 1
+fi
+
+# 根据 CLI 类型启动
+CLI=$(get_cli "$PROFILE")
+CONFIG_FILE="$SPIRITS_DIR/$PROFILE/config.json"
+
+case "$CLI" in
+  claude)
+    sync_skills "$PROFILE"
+    PROVIDER=$(json_val provider "$CONFIG_FILE")
+    MODEL=$(json_val model "$CONFIG_FILE")
+
+    if [ -n "$PROVIDER" ] && [ -f "$PROVIDERS_FILE" ]; then
+      BASE_URL=$(provider_val "$PROVIDER" base_url)
+      API_KEY=$(provider_val "$PROVIDER" api_key)
+    else
+      # 兼容旧格式：直接从 config.json 读
+      API_KEY=$(json_val api_key "$CONFIG_FILE")
+      BASE_URL=$(json_val base_url "$CONFIG_FILE")
+    fi
+
+    [ -n "$API_KEY" ]  && export ANTHROPIC_API_KEY="$API_KEY"
+    [ -n "$BASE_URL" ] && export ANTHROPIC_BASE_URL="$BASE_URL"
+    unset ANTHROPIC_AUTH_TOKEN
+    export CLAUDE_CONFIG_DIR="$SPIRITS_DIR/$PROFILE"
+
+    if [ "$AUTO_MODE" -eq 1 ]; then
+      FORWARD_ARGS=(--permission-mode bypassPermissions "${FORWARD_ARGS[@]}")
+    fi
+
+    if [ -n "$MODEL" ]; then
+      exec claude --model "$MODEL" "${FORWARD_ARGS[@]}"
+    else
+      exec claude "${FORWARD_ARGS[@]}"
+    fi
+    ;;
+
+  opencode)
+    sync_skills "$PROFILE"
+    export OPENCODE_CONFIG_CONTENT="$(build_opencode_config "$PROFILE")"
+    export OPENCODE_CONFIG_DIR="$SPIRITS_DIR/$PROFILE"
+    exec opencode "${FORWARD_ARGS[@]}"
+    ;;
+
+  *)
+    echo "错误: 不支持的 cli 类型 '$CLI'"
+    exit 1
+    ;;
+esac
