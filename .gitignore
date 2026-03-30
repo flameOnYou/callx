@@ -12,6 +12,7 @@ bun.lock
 __pycache__/
 *.pyc
 *.pyo
+RELEASE.local.md
 
 # Claude Code 运行时文件
 .claude/

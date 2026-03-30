@@ -29,7 +29,7 @@
 ## 🚀 快速开始
 
 ```bash
-npm install -g callx-cli
+npm install -g callx
 callx -l
 $EDITOR ~/.config/callx/providers.json
 callx -d claude-01

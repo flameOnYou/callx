@@ -33,7 +33,7 @@
 安装：
 
 ```bash
-npm install -g callx-cli
+npm install -g callx
 ```
 
 如果你是在本地开发这个仓库，也可以直接：
