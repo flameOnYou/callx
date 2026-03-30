@@ -17,7 +17,7 @@
 
 ## ⚡ 功能特性
 
-- **一键召唤** — `callx` 直达默认 sprite，`callx <名>` 召唤任意 sprite
+- **一键召唤** — `call` 直达默认 sprite，`call <名>` 召唤任意 sprite
 - **统一 API 配置** — 所有提供商的 API Key 集中在 `providers.json`
 - **技能即插即用** — 遵循 Agent Skills 规范，修改一次所有智能体生效
 - **运行时无缝切换** — 无需退出，切换后模型、提供商、技能全部重新加载
@@ -30,10 +30,10 @@
 
 ```bash
 npm install -g @greenhill/callx
-callx -l
+call -l
 $EDITOR ~/.config/callx/providers.json
-callx -d claude-01
-callx
+call -d claude-01
+call
 ```
 
 ---

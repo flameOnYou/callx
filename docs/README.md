@@ -41,7 +41,7 @@
 
 | 特性 | 说明 |
 |------|------|
-| ⚡ **一键召唤** | `callx` 召唤默认 sprite，`callx <名>` 召唤指定 sprite |
+| ⚡ **一键召唤** | `call` 召唤默认 sprite，`call <名>` 召唤指定 sprite |
 | 🔗 **统一 API 配置** | 所有提供商的 API Key 集中在 `providers.json` |
 | 🧩 **技能即插即用** | 技能统一放在 `skillpacks/`，所有 sprite 共享 |
 | 🔀 **运行时无缝切换** | 无需退出，切换智能体后模型、提供商、技能全部重新加载 |
@@ -63,22 +63,22 @@
 
 ```bash
 npm install -g @greenhill/callx
-callx -l
+call -l
 $EDITOR ~/.config/callx/providers.json
-callx -d claude-01
-callx
+call -d claude-01
+call
 ```
 
-首次运行时，如果 `~/.config/callx` 不存在，`callx` 会自动创建默认配置目录和内置示例。
+首次运行时，如果 `~/.config/callx` 不存在，`call` 会自动创建默认配置目录和内置示例。
 
 如果你是在本地开发这个仓库：
 
 ```bash
 npm install -g .
-callx -l
+call -l
 $EDITOR ~/.config/callx/providers.json
-callx -d claude-01
-callx
+call -d claude-01
+call
 ```
 
 ---
@@ -86,14 +86,14 @@ callx
 ## 命令速查
 
 ```bash
-callx              # 召唤默认 sprite
-callx claude-01    # 召唤指定 sprite
-callx -l           # 查看所有可召唤的 sprite
-callx -d <sprite>  # 设置默认 sprite
-callx -a           # 自动执行模式
-callx -s           # 查看当前配置
-callx update       # 通过 npm 更新 callx
-callx -h           # 显示帮助
+call              # 召唤默认 sprite
+call claude-01    # 召唤指定 sprite
+call -l           # 查看所有可召唤的 sprite
+call -d <sprite>  # 设置默认 sprite
+call -a           # 自动执行模式
+call -s           # 查看当前配置
+call update       # 通过 npm 更新 call
+call -h           # 显示帮助
 ```
 
 ---
@@ -101,15 +101,15 @@ callx -h           # 显示帮助
 ## 终端演示
 
 ```bash
-$ callx
+$ call
 正在召唤默认 sprite...
 ✓ claude-01 就绪 · deepseek · claude-3-7-sonnet
 
-$ callx -l
+$ call -l
 claude-01   claude · deepseek · claude-3-7-sonnet  ● 默认
 open-01     opencode · openai · gpt-4o
 
-$ callx claude-01 run "优化我的数据库查询"
+$ call claude-01 run "优化我的数据库查询"
 召唤 claude-01，执行任务...
 ```
 

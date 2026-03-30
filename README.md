@@ -4,7 +4,7 @@
 
 `callx` 是一个 Node CLI：
 
-- 全局安装命令是 `callx`
+- 全局安装命令是 `call`
 - 用户配置统一读取 `~/.config/callx`
 - 第一次运行时如果配置目录不存在，会自动初始化
 
@@ -44,7 +44,7 @@ npm install -g .
 
 ## 配置
 
-第一次运行任意 `callx` 命令时，如果 `~/.config/callx` 不存在，会自动创建：
+第一次运行任意 `call` 命令时，如果 `~/.config/callx` 不存在，会自动创建：
 
 - `~/.config/callx/providers.json`
 - `~/.config/callx/skillpacks/`
@@ -76,13 +76,13 @@ $EDITOR ~/.config/callx/providers.json
 ## 使用
 
 ```bash
-callx -l
-callx -d open-01
-callx
-callx claude-01
-callx open-01 -a run "hi"
-callx -s
-callx update
+call -l
+call -d open-01
+call
+call claude-01
+call open-01 -a run "hi"
+call -s
+call update
 ```
 
 ## 更新
@@ -90,7 +90,7 @@ callx update
 如果是通过 npm 全局安装的，直接：
 
 ```bash
-callx update
+call update
 ```
 
 它会执行 npm 全局升级，不会改动 `~/.config/callx`。配置里的 `providers.json`、`sprites/`、`skillpacks/` 都由用户自己维护。
@@ -140,8 +140,8 @@ EOF
 然后：
 
 ```bash
-callx -l
-callx my-agent
+call -l
+call my-agent
 ```
 
 ## 约定

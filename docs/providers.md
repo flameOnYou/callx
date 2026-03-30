@@ -30,7 +30,7 @@
 
 1. 在 `providers.json` 中加一项
 2. 在需要的 sprite 的 `config.json` 里设置 `"provider": "新名字"`
-3. 重新运行 `callx` 即可生效
+3. 重新运行 `call` 即可生效
 
 ## 注意事项
 

@@ -25,8 +25,8 @@ EOF
 ### 3. 使用
 
 ```bash
-callx -l
-callx <sprite 名>
+call -l
+call <sprite 名>
 ```
 
 ## OpenCode vs Claude CLI

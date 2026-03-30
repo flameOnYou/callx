@@ -12,6 +12,7 @@ const SKILLPACKS_DIR = path.join(CONFIG_BASE, "skillpacks");
 const PROVIDERS_FILE = path.join(CONFIG_BASE, "providers.json");
 const DEFAULT_FILE = path.join(CONFIG_BASE, ".default");
 const PACKAGE_NAME = "@greenhill/callx";
+const COMMAND_NAME = "call";
 
 function fileExists(target) {
   return fs.existsSync(target);
@@ -217,7 +218,7 @@ function showCurrent(selectedSprite) {
   ensureReady();
   const current = selectedSprite || getDefault();
   if (!current) {
-    fail("未设置默认 sprite，请先运行 callx -d <名>");
+    fail(`未设置默认 sprite，请先运行 ${COMMAND_NAME} -d <名>`);
   }
 
   const config = getSpriteConfig(current);
@@ -236,23 +237,23 @@ function showHelp() {
   console.log(`callx — AI 环境切换工具（支持 claude / opencode）
 
 用法:
-  callx [选项] [sprite 名] [-- 参数...]
+  ${COMMAND_NAME} [选项] [sprite 名] [-- 参数...]
 
 选项:
   -l, --list          列出所有可用 sprite
   -d, --default <名>  设置默认 sprite
   -a, --auto          自动执行模式
   -s, --show          显示当前 sprite 配置
-  update              通过 npm 更新 callx
+  update              通过 npm 更新 ${COMMAND_NAME}
   -h, --help          显示帮助
 
 示例:
-  callx -l
-  callx -d open-01
-  callx
-  callx claude-01
-  callx open-01 -a run "hi"
-  callx update`);
+  ${COMMAND_NAME} -l
+  ${COMMAND_NAME} -d open-01
+  ${COMMAND_NAME}
+  ${COMMAND_NAME} claude-01
+  ${COMMAND_NAME} open-01 -a run "hi"
+  ${COMMAND_NAME} update`);
 }
 
 function fail(message) {
@@ -366,12 +367,12 @@ function main() {
 
   const sprite = args.sprite || getDefault();
   if (!sprite) {
-    fail("错误: 未指定 sprite，也未设置默认 sprite\n使用 callx -l 查看可用 sprite，callx -d <名> 设为默认");
+    fail(`错误: 未指定 sprite，也未设置默认 sprite\n使用 ${COMMAND_NAME} -l 查看可用 sprite，${COMMAND_NAME} -d <名> 设为默认`);
   }
 
   const spriteDir = path.join(SPRITES_DIR, sprite);
   if (!fileExists(spriteDir)) {
-    fail(`错误: sprite '${sprite}' 不存在\n使用 callx -l 查看可用 sprite`);
+    fail(`错误: sprite '${sprite}' 不存在\n使用 ${COMMAND_NAME} -l 查看可用 sprite`);
   }
 
   const config = getSpriteConfig(sprite);

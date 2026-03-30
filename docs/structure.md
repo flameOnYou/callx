@@ -31,7 +31,7 @@ sprites/<sprite 名>/
 ├── agents/
 ├── commands/
 ├── modes/
-├── skills/              # callx 启动时自动建软链接
+├── skills/              # call 启动时自动建软链接
 ├── tools/
 └── themes/
 ```

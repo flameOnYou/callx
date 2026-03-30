@@ -14,7 +14,7 @@
     "release:major:publish": "node ./scripts/release.js major --publish"
   },
   "bin": {
-    "callx": "./callx"
+    "call": "./callx"
   },
   "files": [
     "callx",

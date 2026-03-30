@@ -4,7 +4,7 @@
 
 ## 工作原理
 
-各 sprite 通过 `config.json` 的 `skill_links` 字段声明需要哪些技能，`callx` 启动时自动在对应 sprite 的 `skills/` 目录下建立软链接，指向 `skillpacks/` 中的技能。
+各 sprite 通过 `config.json` 的 `skill_links` 字段声明需要哪些技能，`call` 启动时自动在对应 sprite 的 `skills/` 目录下建立软链接，指向 `skillpacks/` 中的技能。
 
 **修改技能只需改 `skillpacks/`，所有 sprite 立即生效。**
 
