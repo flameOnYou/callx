@@ -9,15 +9,26 @@
   "deepseek": {
     "base_url": "https://api.deepseek.com/v1",
     "api_key": "sk-xxx",
-    "format": "openai"
+    "format": "openai",
+    "remark": "日常编码"
   },
   "minimax": {
     "base_url": "https://api.minimaxi.com/anthropic",
     "api_key": "sk-xxx",
-    "format": "anthropic"
+    "format": "anthropic",
+    "remark": "Claude 兼容线路"
   }
 }
 ```
+
+## 字段说明
+
+| 字段 | 说明 |
+|------|------|
+| `base_url` | 提供商接口地址 |
+| `api_key` | 对应提供商的密钥 |
+| `format` | 协议类型，`openai` 或 `anthropic` |
+| `remark` | 可选备注，用于标记用途、线路、账号归属等 |
 
 ## format 字段说明
 

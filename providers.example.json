@@ -2,21 +2,25 @@
   "minimax": {
     "base_url": "https://api.minimaxi.com/anthropic",
     "api_key": "your_minimax_key_here",
-    "format": "anthropic"
+    "format": "anthropic",
+    "remark": "Claude-compatible endpoint for MiniMax"
   },
   "deepseek": {
     "base_url": "https://api.deepseek.com/v1",
     "api_key": "your_deepseek_key_here",
-    "format": "openai"
+    "format": "openai",
+    "remark": "General coding and chat"
   },
   "openai": {
     "base_url": "https://api.openai.com/v1",
     "api_key": "your_openai_key_here",
-    "format": "openai"
+    "format": "openai",
+    "remark": "Official OpenAI API"
   },
   "anthropic": {
     "base_url": "https://api.anthropic.com",
     "api_key": "your_anthropic_key_here",
-    "format": "anthropic"
+    "format": "anthropic",
+    "remark": "Official Anthropic API"
   }
 }

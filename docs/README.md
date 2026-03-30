@@ -71,6 +71,8 @@ call
 
 首次运行时，如果 `~/.config/callx` 不存在，`call` 会自动创建默认配置目录和内置示例。
 
+`providers.json` 中的 provider 支持可选 `remark` 字段，用来记录用途、线路或账号备注，运行 `call -s` 时会显示出来。
+
 如果你是在本地开发这个仓库：
 
 ```bash

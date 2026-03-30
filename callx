@@ -104,6 +104,11 @@ function getProviderValue(providerName, field) {
   return providers[providerName]?.[field] || "";
 }
 
+function getProvider(providerName) {
+  const providers = readJson(PROVIDERS_FILE);
+  return providers[providerName] || {};
+}
+
 function ensureReady() {
   const bootstrapped = bootstrapConfigIfMissing();
   if (bootstrapped) {
@@ -224,10 +229,12 @@ function showCurrent(selectedSprite) {
   const config = getSpriteConfig(current);
   const provider = config.provider || "-";
   const baseUrl = provider !== "-" ? getProviderValue(provider, "base_url") || "-" : "-";
+  const providerRemark = provider !== "-" ? getProvider(provider).remark || "-" : "-";
 
   console.log(`当前 sprite: ${current}`);
   console.log(`  CLI:      ${config.cli || "opencode"}`);
   console.log(`  Provider: ${provider}`);
+  console.log(`  Remark:   ${providerRemark}`);
   console.log(`  Model:    ${config.model || "-"}`);
   console.log(`  Base URL: ${baseUrl}`);
   console.log("  Key:      (stored in providers.json)");

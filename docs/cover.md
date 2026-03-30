@@ -19,6 +19,7 @@
 
 - **一键召唤** — `call` 直达默认 sprite，`call <名>` 召唤任意 sprite
 - **统一 API 配置** — 所有提供商的 API Key 集中在 `providers.json`
+- **备注可见** — provider 支持 `remark` 字段，可在 `call -s` 中查看
 - **技能即插即用** — 遵循 Agent Skills 规范，修改一次所有智能体生效
 - **运行时无缝切换** — 无需退出，切换后模型、提供商、技能全部重新加载
 - **多智能体并行** — 在 `sprites/` 下配置任意多个 sprite

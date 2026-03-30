@@ -63,15 +63,19 @@ $EDITOR ~/.config/callx/providers.json
   "deepseek": {
     "base_url": "https://api.deepseek.com/v1",
     "api_key": "sk-xxx",
-    "format": "openai"
+    "format": "openai",
+    "remark": "日常编码"
   },
   "minimax": {
     "base_url": "https://api.minimaxi.com/anthropic",
     "api_key": "sk-xxx",
-    "format": "anthropic"
+    "format": "anthropic",
+    "remark": "Claude 兼容线路"
   }
 }
 ```
+
+其中 `remark` 是可选字段，用来标记用途、线路或账号备注，运行 `call -s` 时会显示出来。
 
 ## 使用
 
