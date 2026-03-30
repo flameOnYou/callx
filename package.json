@@ -1,6 +1,6 @@
 {
   "name": "@greenhill/callx",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "AI runtime switcher for Claude Code and OpenCode",
   "license": "GPL-3.0",
   "scripts": {
