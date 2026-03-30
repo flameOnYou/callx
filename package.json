@@ -1,5 +1,5 @@
 {
-  "name": "callx",
+  "name": "@greenhill/callx",
   "version": "0.1.1",
   "description": "AI runtime switcher for Claude Code and OpenCode",
   "license": "GPL-3.0",

@@ -33,7 +33,7 @@
 安装：
 
 ```bash
-npm install -g callx
+npm install -g @greenhill/callx
 ```
 
 如果你是在本地开发这个仓库，也可以直接：
@@ -99,7 +99,7 @@ callx update
 
 发 npm 包之前，先确保：
 
-- 你已经登录 npm：`npm login`
+- 你已经登录 npm：`npm login --registry=https://registry.npmjs.org/`
 - git 工作区是干净的
 
 常用命令：

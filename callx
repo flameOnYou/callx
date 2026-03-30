@@ -11,7 +11,7 @@ const SPRITES_DIR = path.join(CONFIG_BASE, "sprites");
 const SKILLPACKS_DIR = path.join(CONFIG_BASE, "skillpacks");
 const PROVIDERS_FILE = path.join(CONFIG_BASE, "providers.json");
 const DEFAULT_FILE = path.join(CONFIG_BASE, ".default");
-const PACKAGE_NAME = "callx";
+const PACKAGE_NAME = "@greenhill/callx";
 
 function fileExists(target) {
   return fs.existsSync(target);

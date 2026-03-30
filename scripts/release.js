@@ -8,6 +8,7 @@ const { spawnSync } = require("child_process");
 const ROOT = path.resolve(__dirname, "..");
 const PACKAGE_JSON = path.join(ROOT, "package.json");
 const VALID_BUMPS = new Set(["patch", "minor", "major", "prepatch", "preminor", "premajor", "prerelease"]);
+const OFFICIAL_NPM_REGISTRY = "https://registry.npmjs.org/";
 
 function run(command, args, options = {}) {
   const result = spawnSync(command, args, {
@@ -26,6 +27,16 @@ function run(command, args, options = {}) {
   if (result.status !== 0) {
     process.exit(result.status || 1);
   }
+}
+
+function runNpm(args, options = {}) {
+  run("npm", args, {
+    ...options,
+    env: {
+      ...options.env,
+      npm_config_registry: OFFICIAL_NPM_REGISTRY,
+    },
+  });
 }
 
 function readPackageVersion() {
@@ -116,7 +127,7 @@ function ensureCleanGit() {
 }
 
 function ensureNpmAuth() {
-  run("npm", ["whoami"]);
+  runNpm(["whoami"]);
 }
 
 function packCheck() {
@@ -136,7 +147,7 @@ function publish(tag) {
   if (tag) {
     args.push("--tag", tag);
   }
-  run("npm", args);
+  runNpm(args);
 }
 
 function main() {
