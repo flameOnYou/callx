@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <strong>一键切换、统一管理多个 AI 运行环境 — Claude Code、OpenCode 随叫随到。</strong>
+  <strong>像 codex、claude、opencode 一样，通过 npm -g 安装，用 ~/.config/callx 管理多个 AI 运行环境。</strong>
 </p>
 
 <p align="center">
@@ -41,11 +41,11 @@
 
 | 特性 | 说明 |
 |------|------|
-| ⚡ **一键召唤** | `call` 召唤默认智能体，`call <名>` 召唤任意智能体 |
-| 🔗 **统一 API 配置** | 所有提供商的 API Key 集中在 `providers.json`，一处配置处处生效 |
-| 🧩 **技能即插即用** | 遵循 Agent Skills 规范，技能存放在 `skill-packs/`，所有智能体共享 |
+| ⚡ **一键召唤** | `callx` 召唤默认 sprite，`callx <名>` 召唤指定 sprite |
+| 🔗 **统一 API 配置** | 所有提供商的 API Key 集中在 `providers.json` |
+| 🧩 **技能即插即用** | 技能统一放在 `skillpacks/`，所有 sprite 共享 |
 | 🔀 **运行时无缝切换** | 无需退出，切换智能体后模型、提供商、技能全部重新加载 |
-| 🎭 **多智能体并行** | 在 `spirits/` 下配置任意多个智能体，按任务选择最合适的 |
+| 🎭 **多智能体并行** | 在 `sprites/` 下配置任意多个 sprite，按任务选择最合适的 |
 | 🛠️ **完全可扩展** | agents、commands、modes、tools、themes 全部可自定义 |
 
 ---
@@ -54,7 +54,7 @@
 
 ### 前置条件
 
-- Python 3
+- Node.js 18+
 - 对应 AI CLI 工具：
   - **OpenCode**：`npm install -g opencode-ai`
   - **Claude Code**：`npm install -g @anthropic-ai/claude-code`
@@ -62,20 +62,23 @@
 ### 步骤
 
 ```bash
-# 1. 克隆到本地
-git clone https://github.com/flameOnYou/callx.git ~/.callx
+npm install -g callx-cli
+callx -l
+$EDITOR ~/.config/callx/providers.json
+callx -d claude-01
+callx
+```
 
-# 2. 创建软链接
-ln -s ~/.callx/call /usr/local/bin/call
+首次运行时，如果 `~/.config/callx` 不存在，`callx` 会自动创建默认配置目录和内置示例。
 
-# 3. 配置 API Key
-cp ~/.callx/providers.example.json ~/.callx/providers.json
-# 编辑 providers.json，填入真实 API Key
+如果你是在本地开发这个仓库：
 
-# 4. 开始召唤
-call -l           # 查看所有可召唤的智能体
-call -d claude-01 # 设置默认智能体
-call              # 召唤！
+```bash
+npm install -g .
+callx -l
+$EDITOR ~/.config/callx/providers.json
+callx -d claude-01
+callx
 ```
 
 ---
@@ -83,13 +86,14 @@ call              # 召唤！
 ## 命令速查
 
 ```bash
-call              # 召唤默认智能体
-call claude-01    # 召唤指定智能体
-call -l           # 查看所有可召唤的智能体
-call -d <智能体名> # 设置默认智能体
-call -a           # 自动执行模式
-call -s           # 查看当前配置
-call -h           # 显示帮助
+callx              # 召唤默认 sprite
+callx claude-01    # 召唤指定 sprite
+callx -l           # 查看所有可召唤的 sprite
+callx -d <sprite>  # 设置默认 sprite
+callx -a           # 自动执行模式
+callx -s           # 查看当前配置
+callx update       # 通过 npm 更新 callx
+callx -h           # 显示帮助
 ```
 
 ---
@@ -97,15 +101,15 @@ call -h           # 显示帮助
 ## 终端演示
 
 ```bash
-$ call
-正在召唤默认智能体...
+$ callx
+正在召唤默认 sprite...
 ✓ claude-01 就绪 · deepseek · claude-3-7-sonnet
 
-$ call -l
+$ callx -l
 claude-01   claude · deepseek · claude-3-7-sonnet  ● 默认
 open-01     opencode · openai · gpt-4o
 
-$ call claude-01 run "优化我的数据库查询"
+$ callx claude-01 run "优化我的数据库查询"
 召唤 claude-01，执行任务...
 ```
 

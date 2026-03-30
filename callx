@@ -1,0 +1,416 @@
+#!/usr/bin/env node
+
+const fs = require("fs");
+const path = require("path");
+const os = require("os");
+const { spawnSync } = require("child_process");
+
+const SCRIPT_DIR = __dirname;
+const CONFIG_BASE = path.join(process.env.XDG_CONFIG_HOME || path.join(os.homedir(), ".config"), "callx");
+const SPRITES_DIR = path.join(CONFIG_BASE, "sprites");
+const SKILLPACKS_DIR = path.join(CONFIG_BASE, "skillpacks");
+const PROVIDERS_FILE = path.join(CONFIG_BASE, "providers.json");
+const DEFAULT_FILE = path.join(CONFIG_BASE, ".default");
+const PACKAGE_NAME = "callx-cli";
+
+function fileExists(target) {
+  return fs.existsSync(target);
+}
+
+function readJson(file) {
+  try {
+    return JSON.parse(fs.readFileSync(file, "utf8"));
+  } catch {
+    return {};
+  }
+}
+
+function ensureDir(dir) {
+  fs.mkdirSync(dir, { recursive: true });
+}
+
+function copyMissing(srcRoot, dstRoot) {
+  if (!fileExists(srcRoot)) {
+    return;
+  }
+  ensureDir(dstRoot);
+  for (const entry of fs.readdirSync(srcRoot, { withFileTypes: true })) {
+    const src = path.join(srcRoot, entry.name);
+    const dst = path.join(dstRoot, entry.name);
+    if (fileExists(dst)) {
+      continue;
+    }
+    if (entry.isDirectory()) {
+      fs.cpSync(src, dst, { recursive: true });
+    } else {
+      fs.copyFileSync(src, dst);
+    }
+  }
+}
+
+function bootstrapConfigIfMissing() {
+  const needsBootstrap = !fileExists(PROVIDERS_FILE) || !fileExists(SPRITES_DIR) || !fileExists(SKILLPACKS_DIR);
+  if (!needsBootstrap) {
+    return false;
+  }
+
+  ensureDir(CONFIG_BASE);
+  ensureDir(SPRITES_DIR);
+  ensureDir(SKILLPACKS_DIR);
+
+  const providersSeed = path.join(SCRIPT_DIR, "providers.example.json");
+  if (fileExists(providersSeed) && !fileExists(PROVIDERS_FILE)) {
+    fs.copyFileSync(providersSeed, PROVIDERS_FILE);
+  }
+
+  copyMissing(path.join(SCRIPT_DIR, "sprites"), SPRITES_DIR);
+  copyMissing(path.join(SCRIPT_DIR, "skillpacks"), SKILLPACKS_DIR);
+
+  if (!fileExists(DEFAULT_FILE) && fileExists(path.join(SPRITES_DIR, "open-01"))) {
+    fs.writeFileSync(DEFAULT_FILE, "open-01\n", "utf8");
+  }
+
+  return true;
+}
+
+function getDefault() {
+  if (!fileExists(DEFAULT_FILE)) {
+    return "";
+  }
+  return fs.readFileSync(DEFAULT_FILE, "utf8").trim();
+}
+
+function setDefault(name) {
+  const dir = path.join(SPRITES_DIR, name);
+  if (!fileExists(dir)) {
+    fail(`错误: sprite '${name}' 不存在`);
+  }
+  fs.writeFileSync(DEFAULT_FILE, `${name}\n`, "utf8");
+  console.log(`已设为默认 sprite: ${name}`);
+}
+
+function getSpriteConfig(sprite) {
+  return readJson(path.join(SPRITES_DIR, sprite, "config.json"));
+}
+
+function getCli(sprite) {
+  const config = getSpriteConfig(sprite);
+  return config.cli || "opencode";
+}
+
+function getProviderValue(providerName, field) {
+  const providers = readJson(PROVIDERS_FILE);
+  return providers[providerName]?.[field] || "";
+}
+
+function ensureReady() {
+  const bootstrapped = bootstrapConfigIfMissing();
+  if (bootstrapped) {
+    console.error(`已初始化配置目录: ${CONFIG_BASE}`);
+    console.error(`请编辑: ${PROVIDERS_FILE}`);
+  }
+  if (!fileExists(PROVIDERS_FILE)) {
+    fail(`错误: 未找到 ${PROVIDERS_FILE}`);
+  }
+}
+
+function syncSkills(sprite) {
+  const config = getSpriteConfig(sprite);
+  const links = Array.isArray(config.skill_links) ? config.skill_links : [];
+  const skillsDir = path.join(SPRITES_DIR, sprite, "skills");
+  ensureDir(skillsDir);
+
+  for (const entry of fs.readdirSync(skillsDir, { withFileTypes: true })) {
+    const fullPath = path.join(skillsDir, entry.name);
+    if (!links.includes(entry.name) && fs.lstatSync(fullPath).isSymbolicLink()) {
+      fs.unlinkSync(fullPath);
+    }
+  }
+
+  for (const skill of links) {
+    const target = path.join(SKILLPACKS_DIR, skill);
+    if (!fileExists(target)) {
+      console.error(`警告: skillpacks 中不存在技能 '${skill}'，跳过`);
+      continue;
+    }
+    const link = path.join(skillsDir, skill);
+    if (fileExists(link)) {
+      fs.rmSync(link, { recursive: true, force: true });
+    }
+    const type = process.platform === "win32" ? "junction" : "dir";
+    fs.symlinkSync(target, link, type);
+  }
+}
+
+function buildOpenCodeConfig(sprite, autoMode) {
+  const spriteCfg = getSpriteConfig(sprite);
+  const providers = readJson(PROVIDERS_FILE);
+  const providerName = spriteCfg.provider || "";
+
+  const config = {
+    $schema: "https://opencode.ai/config.json",
+  };
+
+  if (spriteCfg.model) {
+    config.model = spriteCfg.model;
+  }
+  if (spriteCfg.autoupdate) {
+    config.autoupdate = spriteCfg.autoupdate;
+  }
+  if (Array.isArray(spriteCfg.skill_links) && spriteCfg.skill_links.length > 0) {
+    config.skills = { paths: ["./skills"] };
+  } else if (spriteCfg.skills) {
+    config.skills = spriteCfg.skills;
+  }
+
+  if (providerName && providers[providerName]) {
+    const prov = providers[providerName];
+    if (prov.format === "anthropic") {
+      config.provider = {
+        anthropic: {
+          options: {
+            apiKey: prov.api_key || "",
+            baseURL: prov.base_url || "",
+          },
+        },
+      };
+    } else {
+      config.provider = {
+        [providerName]: {
+          options: {
+            apiKey: prov.api_key || "",
+            baseURL: prov.base_url || "",
+          },
+        },
+      };
+    }
+  }
+
+  if (autoMode) {
+    config.permission = "allow";
+  }
+
+  return JSON.stringify(config);
+}
+
+function listSprites() {
+  ensureReady();
+  console.log("可用 sprites:");
+  if (!fileExists(SPRITES_DIR)) {
+    return;
+  }
+
+  for (const entry of fs.readdirSync(SPRITES_DIR, { withFileTypes: true })) {
+    if (!entry.isDirectory()) {
+      continue;
+    }
+    const name = entry.name;
+    const config = getSpriteConfig(name);
+    const cli = config.cli || "opencode";
+    const provider = config.provider || "-";
+    const model = config.model || "-";
+    console.log(`  ${name.padEnd(20)} [${cli.padEnd(10)}] provider=${provider.padEnd(12)} model=${model}`);
+  }
+}
+
+function showCurrent(selectedSprite) {
+  ensureReady();
+  const current = selectedSprite || getDefault();
+  if (!current) {
+    fail("未设置默认 sprite，请先运行 callx -d <名>");
+  }
+
+  const config = getSpriteConfig(current);
+  const provider = config.provider || "-";
+  const baseUrl = provider !== "-" ? getProviderValue(provider, "base_url") || "-" : "-";
+
+  console.log(`当前 sprite: ${current}`);
+  console.log(`  CLI:      ${config.cli || "opencode"}`);
+  console.log(`  Provider: ${provider}`);
+  console.log(`  Model:    ${config.model || "-"}`);
+  console.log(`  Base URL: ${baseUrl}`);
+  console.log("  Key:      (stored in providers.json)");
+}
+
+function showHelp() {
+  console.log(`callx — AI 环境切换工具（支持 claude / opencode）
+
+用法:
+  callx [选项] [sprite 名] [-- 参数...]
+
+选项:
+  -l, --list          列出所有可用 sprite
+  -d, --default <名>  设置默认 sprite
+  -a, --auto          自动执行模式
+  -s, --show          显示当前 sprite 配置
+  update              通过 npm 更新 callx
+  -h, --help          显示帮助
+
+示例:
+  callx -l
+  callx -d open-01
+  callx
+  callx claude-01
+  callx open-01 -a run "hi"
+  callx update`);
+}
+
+function fail(message) {
+  console.error(message);
+  process.exit(1);
+}
+
+function runCommand(command, args, extraEnv = {}) {
+  const result = spawnSync(command, args, {
+    stdio: "inherit",
+    env: { ...process.env, ...extraEnv },
+  });
+
+  if (result.error) {
+    if (result.error.code === "ENOENT") {
+      fail(`错误: 未找到命令 '${command}'`);
+    }
+    fail(result.error.message);
+  }
+
+  process.exit(result.status === null ? 1 : result.status);
+}
+
+function updateSelf() {
+  const npmCmd = process.platform === "win32" ? "npm.cmd" : "npm";
+  runCommand(npmCmd, ["install", "-g", `${PACKAGE_NAME}@latest`]);
+}
+
+function parseArgs(rawArgs) {
+  const state = {
+    sprite: "",
+    autoMode: false,
+    show: false,
+    list: false,
+    setDefault: "",
+    forwardArgs: [],
+  };
+
+  let i = 0;
+  while (i < rawArgs.length) {
+    const arg = rawArgs[i];
+    if (arg === "update") {
+      updateSelf();
+    }
+    if (arg === "-l" || arg === "--list") {
+      state.list = true;
+      i += 1;
+      continue;
+    }
+    if (arg === "-s" || arg === "--show") {
+      state.show = true;
+      i += 1;
+      continue;
+    }
+    if (arg === "-h" || arg === "--help") {
+      showHelp();
+      process.exit(0);
+    }
+    if (arg === "-a" || arg === "--auto") {
+      state.autoMode = true;
+      i += 1;
+      continue;
+    }
+    if (arg === "-d" || arg === "--default") {
+      if (!rawArgs[i + 1]) {
+        fail("错误: --default 需要一个 sprite 名称");
+      }
+      state.setDefault = rawArgs[i + 1];
+      i += 2;
+      continue;
+    }
+    if (arg === "--") {
+      state.forwardArgs.push(...rawArgs.slice(i + 1));
+      break;
+    }
+    if (arg.startsWith("-")) {
+      fail(`未知选项: ${arg}`);
+    }
+    if (!state.sprite) {
+      state.sprite = arg;
+      i += 1;
+      continue;
+    }
+    state.forwardArgs.push(arg);
+    i += 1;
+  }
+
+  return state;
+}
+
+function main() {
+  const args = parseArgs(process.argv.slice(2));
+
+  if (args.list) {
+    listSprites();
+    return;
+  }
+
+  if (args.setDefault) {
+    ensureReady();
+    setDefault(args.setDefault);
+    return;
+  }
+
+  if (args.show) {
+    showCurrent(args.sprite);
+    return;
+  }
+
+  ensureReady();
+
+  const sprite = args.sprite || getDefault();
+  if (!sprite) {
+    fail("错误: 未指定 sprite，也未设置默认 sprite\n使用 callx -l 查看可用 sprite，callx -d <名> 设为默认");
+  }
+
+  const spriteDir = path.join(SPRITES_DIR, sprite);
+  if (!fileExists(spriteDir)) {
+    fail(`错误: sprite '${sprite}' 不存在\n使用 callx -l 查看可用 sprite`);
+  }
+
+  const config = getSpriteConfig(sprite);
+  const cli = config.cli || "opencode";
+  syncSkills(sprite);
+
+  if (cli === "claude") {
+    const forwardArgs = [...args.forwardArgs];
+    if (args.autoMode) {
+      forwardArgs.unshift("bypassPermissions");
+      forwardArgs.unshift("--permission-mode");
+    }
+    const env = {
+      CLAUDE_CONFIG_DIR: spriteDir,
+    };
+    const provider = config.provider || "";
+    const apiKey = provider ? getProviderValue(provider, "api_key") : "";
+    const baseUrl = provider ? getProviderValue(provider, "base_url") : "";
+    if (apiKey) {
+      env.ANTHROPIC_API_KEY = apiKey;
+    }
+    if (baseUrl) {
+      env.ANTHROPIC_BASE_URL = baseUrl;
+    }
+    if (config.model) {
+      forwardArgs.unshift(config.model);
+      forwardArgs.unshift("--model");
+    }
+    runCommand("claude", forwardArgs, env);
+  }
+
+  if (cli === "opencode") {
+    runCommand("opencode", args.forwardArgs, {
+      OPENCODE_CONFIG_DIR: spriteDir,
+      OPENCODE_CONFIG_CONTENT: buildOpenCodeConfig(sprite, args.autoMode),
+    });
+  }
+
+  fail(`错误: 不支持的 cli 类型 '${cli}'`);
+}
+
+main();

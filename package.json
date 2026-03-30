@@ -1,0 +1,35 @@
+{
+  "name": "callx-cli",
+  "version": "0.1.0",
+  "description": "AI runtime switcher for Claude Code and OpenCode",
+  "license": "GPL-3.0",
+  "scripts": {
+    "pack:check": "node ./scripts/release.js --pack-only",
+    "publish:npm": "node ./scripts/release.js --publish-only",
+    "release:patch": "node ./scripts/release.js patch",
+    "release:minor": "node ./scripts/release.js minor",
+    "release:major": "node ./scripts/release.js major",
+    "release:patch:publish": "node ./scripts/release.js patch --publish",
+    "release:minor:publish": "node ./scripts/release.js minor --publish",
+    "release:major:publish": "node ./scripts/release.js major --publish"
+  },
+  "bin": {
+    "callx": "./callx"
+  },
+  "files": [
+    "callx",
+    "providers.example.json",
+    "sprites",
+    "skillpacks",
+    "!skillpacks/**/__pycache__",
+    "!skillpacks/**/*.pyc",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

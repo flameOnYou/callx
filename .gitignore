@@ -9,7 +9,6 @@ providers.json
 .default
 node_modules
 bun.lock
-package.json
 __pycache__/
 *.pyc
 *.pyo

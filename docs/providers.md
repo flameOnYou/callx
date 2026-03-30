@@ -2,7 +2,7 @@
 
 ## 配置格式
 
-在 `providers.json` 中集中管理所有提供商的 API Key：
+在 `~/.config/callx/providers.json` 中集中管理所有提供商的 API Key：
 
 ```json
 {
@@ -29,9 +29,9 @@
 ## 新增提供商
 
 1. 在 `providers.json` 中加一项
-2. 在需要的智能体的 `config.json` 里设置 `"provider": "新名字"`
-3. 重新召唤即可生效
+2. 在需要的 sprite 的 `config.json` 里设置 `"provider": "新名字"`
+3. 重新运行 `callx` 即可生效
 
 ## 注意事项
 
-`providers.json` 含有 API Key，已被 `.gitignore` 排除，**请勿手动提交到 Git**。
+`providers.json` 含有 API Key，不应该提交到 Git。

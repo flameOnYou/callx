@@ -1,30 +1,39 @@
 # 目录结构
 
-```
-~/.callx/
-├── call                    # 召唤脚本（入口）
-├── providers.json          # API 提供商配置（含密钥，已 gitignore）
-├── providers.example.json  # 提供商配置模板（可安全提交）
-├── skill-packs/            # 技能库，所有技能存放于此
-│   ├── code-skill/         # 代码质量检查技能
-│   └── send-email/         # msmtp 邮件发送技能
-├── spirits/                # 所有智能体运行环境
-│   ├── claude-01/          # Claude Code 智能体
-│   └── open-01/            # OpenCode 智能体
-└── .default                # 记录当前默认环境名
+程序目录和配置目录分离。
+
+## 程序目录
+
+```text
+<repo>/
+├── callx
+├── package.json
+├── providers.example.json
+├── skillpacks/
+└── sprites/
 ```
 
-## 智能体内部结构
+## 配置目录
 
+```text
+~/.config/callx/
+├── providers.json
+├── skillpacks/
+├── sprites/
+└── .default
 ```
-spirits/<智能体名>/
-├── config.json          # 模型、提供商、技能链接等配置
-├── agents/              # 自定义 Agent 定义
-├── commands/            # 自定义命令
-├── modes/               # 自定义模式
-├── skills/              # 运行时技能目录（call 启动时自动建软链接）
-├── tools/               # 自定义工具
-└── themes/              # 主题
+
+## Sprite 内部结构
+
+```text
+sprites/<sprite 名>/
+├── config.json          # 模型、provider、skill_links 等配置
+├── agents/
+├── commands/
+├── modes/
+├── skills/              # callx 启动时自动建软链接
+├── tools/
+└── themes/
 ```
 
 ## config.json 示例

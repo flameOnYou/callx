@@ -1,12 +1,12 @@
 # 技能库管理
 
-所有技能统一存放在 `skill-packs/`，遵循 [Agent Skills](https://agentskills.io) 开放规范。
+所有技能统一存放在 `~/.config/callx/skillpacks/`，遵循 [Agent Skills](https://agentskills.io) 开放规范。
 
 ## 工作原理
 
-各智能体通过 `config.json` 的 `skill_links` 字段声明需要哪些技能，`call` 启动时自动在智能体的 `skills/` 目录下建立软链接，指向 `skill-packs/` 中的技能。
+各 sprite 通过 `config.json` 的 `skill_links` 字段声明需要哪些技能，`callx` 启动时自动在对应 sprite 的 `skills/` 目录下建立软链接，指向 `skillpacks/` 中的技能。
 
-**修改技能只需改 `skill-packs/`，所有智能体立即生效。**
+**修改技能只需改 `skillpacks/`，所有 sprite 立即生效。**
 
 ## 内置技能
 
@@ -17,8 +17,8 @@
 
 ## 新增技能
 
-1. 将技能目录放入 `skill-packs/`
-2. 在需要的智能体的 `config.json` 的 `skill_links` 里加上技能名
+1. 将技能目录放入 `skillpacks/`
+2. 在需要的 sprite 的 `config.json` 的 `skill_links` 里加上技能名
 3. 下次召唤时自动生效
 
 ## 邮件技能依赖

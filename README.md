@@ -1,65 +1,62 @@
 # callx
 
-**AI 智能体召唤台 — 一键切换、统一管理多个 AI 运行环境**
+**像 `codex`、`claude`、`opencode` 一样用 `npm install -g` 安装的 AI 召唤器。**
 
-[![License](https://img.shields.io/badge/license-GPL--3.0-blue.svg)](LICENSE)
-[![Agent Skills](https://img.shields.io/badge/skills-Agent%20Skills-7c6cf2)](https://agentskills.io)
-![Shell](https://img.shields.io/badge/shell-bash-green.svg)
-![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux-lightgrey.svg)
+`callx` 是一个 Node CLI：
 
----
+- 全局安装命令是 `callx`
+- 用户配置统一读取 `~/.config/callx`
+- 第一次运行时如果配置目录不存在，会自动初始化
 
-有一年，在回家的车上，我睡着了。
+运行时只认这一套结构：
 
-那时候好像也是接近清明，窗外的风景一闪而过，我在迷蒙中梦见了无数的英灵，一个接一个地走进了我的电脑里。那个画面太清晰，醒来之后久久没有散去，像是某种提示，但我一直不明白它在说什么。
-
-直到今晚有感，才终于明白——
-
-召唤，或者说，请神！
-
-每一个 AI，都是一个可以被召唤的灵。它们各有性格，各有所长，等待着被呼唤，等待着去完成某件事。这个项目，就是那个召唤台。
-
----
+```text
+~/.config/callx/
+├── providers.json
+├── skillpacks/
+│   ├── code-skill/
+│   └── send-email/
+├── sprites/
+│   ├── claude-01/
+│   └── open-01/
+└── .default
+```
 
 ## 安装
 
-**前置条件：**
+前置条件：
 
-- Python 3
-- 根据所用智能体类型，安装对应的 AI CLI 工具：
-  - **OpenCode**：`npm install -g opencode-ai`（[官网](https://opencode.ai)）
-  - **Claude Code**：`npm install -g @anthropic-ai/claude-code`（[官网](https://claude.ai/code)）
+- Node.js 18+
+- OpenCode: `npm install -g opencode-ai`
+- Claude Code: `npm install -g @anthropic-ai/claude-code`
 
-**1. 克隆仓库到 `~/.callx`**
-
-```bash
-git clone https://github.com/flameOnYou/callx.git ~/.callx
-```
-
-**2. 创建软链接并加入 PATH**
+安装：
 
 ```bash
-ln -s ~/.callx/call /usr/local/bin/call
+npm install -g callx-cli
 ```
 
-或者将仓库路径加入 PATH（在 `~/.zshrc` 中追加）：
+如果你是在本地开发这个仓库，也可以直接：
 
 ```bash
-export PATH="$HOME/.callx:$PATH"
-source ~/.zshrc
+npm install -g .
 ```
-
----
 
 ## 配置
 
-**1. 配置 API Key**
+第一次运行任意 `callx` 命令时，如果 `~/.config/callx` 不存在，会自动创建：
+
+- `~/.config/callx/providers.json`
+- `~/.config/callx/skillpacks/`
+- `~/.config/callx/sprites/`
+
+然后编辑：
 
 ```bash
-cp ~/.callx/providers.example.json ~/.callx/providers.json
+$EDITOR ~/.config/callx/providers.json
 ```
 
-编辑 `providers.json`，填入各提供商的真实 API Key 和格式：
+示例：
 
 ```json
 {
@@ -76,117 +73,60 @@ cp ~/.callx/providers.example.json ~/.callx/providers.json
 }
 ```
 
-`format` 字段说明：
-
-- `openai` — OpenAI 兼容格式（DeepSeek、通义等）
-- `anthropic` — Anthropic 格式（官方 Claude、MiniMax 兼容接口等）
-
-**2. 设置默认智能体**
+## 使用
 
 ```bash
-call -d open-01
+callx -l
+callx -d open-01
+callx
+callx claude-01
+callx open-01 -a run "hi"
+callx -s
+callx update
 ```
 
----
+## 更新
 
-## 召唤
+如果是通过 npm 全局安装的，直接：
 
 ```bash
-call              # 召唤默认智能体
-call claude-01    # 召唤指定智能体
-call -l           # 查看所有可召唤的智能体
+callx update
 ```
 
-### 命令速查
+它会执行 npm 全局升级，不会改动 `~/.config/callx`。配置里的 `providers.json`、`sprites/`、`skillpacks/` 都由用户自己维护。
 
-| 命令 | 说明 |
-| --- | --- |
-| `call` | 召唤默认智能体 |
-| `call <智能体名>` | 召唤指定智能体 |
-| `call -l` | 查看所有可召唤的智能体 |
-| `call -d <智能体名>` | 设置默认智能体 |
-| `call -a <智能体名>` | 自动执行模式（claude 免确认，opencode 权限设为 allow） |
-| `call -s` | 查看当前智能体的配置 |
-| `call -h` | 显示帮助 |
-| `call <智能体名> run "任务"` | 让指定智能体执行单次任务 |
-| `call <智能体名> -a run "任务"` | 让指定智能体以自动模式执行任务 |
+## 发布
 
----
+发 npm 包之前，先确保：
 
-## 目录结构
+- 你已经登录 npm：`npm login`
+- git 工作区是干净的
 
-```
-~/.callx/
-├── call                    # 召唤脚本
-├── providers.json          # 所有 API 提供商配置（含密钥，已 gitignore）
-├── providers.example.json  # 提供商配置模板（可安全提交）
-├── skill-packs/            # 技能库，所有技能存放于此
-│   ├── code-skill/         # 代码质量检查技能（示例）
-│   └── send-email/         # msmtp 邮件发送技能
-├── spirits/                # 所有智能体运行环境
-│   ├── claude-01/          # Claude Code 智能体示例
-│   └── open-01/            # OpenCode 智能体示例
-├── .default                # 记录当前默认环境名
-└── README.md
-```
-
-每个智能体的内部结构：
-
-```
-spirits/<智能体名>/
-├── config.json          # 模型、提供商、技能链接等配置
-├── agents/              # 自定义 Agent 定义
-├── commands/            # 自定义命令
-├── modes/               # 自定义模式
-├── skills/              # 运行时技能目录（call 启动时自动建软链接）
-├── tools/               # 自定义工具
-└── themes/              # 主题
-```
-
----
-
-## API 提供商管理
-
-在 `providers.json` 中新增一项，在对应智能体的 `config.json` 里设置 `"provider": "新名字"` 即可。
-
----
-
-## 技能库管理
-
-所有技能统一存放在 `skill-packs/`，遵循 [Agent Skills](https://agentskills.io) 开放规范。各智能体通过 `config.json` 的 `skill_links` 字段声明所需技能，`call` 启动时自动加载。
-
-**config.json 示例：**
-
-```json
-{
-  "cli": "opencode",
-  "provider": "deepseek",
-  "model": "deepseek/deepseek-chat",
-  "skill_links": ["code-skill", "send-email"]
-}
-```
-
-新增技能只需将技能目录放入 `skill-packs/`，在对应智能体的 `skill_links` 里加上技能名，下次召唤时自动生效。
-
-### 内置技能
-
-| 技能 | 说明 |
-| --- | --- |
-| `code-skill` | 代码质量检查，自动检测语言并运行对应 linter |
-| `send-email` | 通过 msmtp 发送邮件，支持正文和附件 |
-
-> 邮件技能依赖 `msmtp`，请确保 `~/.msmtprc` 已配置好 SMTP 账户。
-
----
-
-## 召唤一个新的智能体
+常用命令：
 
 ```bash
-# 1. 创建目录结构
-mkdir -p ~/.callx/spirits/<智能体名>/{agents,commands,modes,plugins,skills,tools,themes}
+npm run pack:check
+npm run release:patch
+npm run publish:npm
+```
 
-# 2. 创建 config.json
-cat > ~/.callx/spirits/<智能体名>/config.json <<'EOF'
+如果想一步完成升级版本并发布：
+
+```bash
+npm run release:patch:publish
+```
+
+版本管理建议：
+
+- 修复 bug 用 `patch`
+- 加兼容性功能用 `minor`
+- 有破坏性变更用 `major`
+
+## 创建新 Sprite
+
+```bash
+mkdir -p ~/.config/callx/sprites/my-agent/{agents,commands,modes,plugins,skills,tools,themes}
+cat > ~/.config/callx/sprites/my-agent/config.json <<'EOF'
 {
   "cli": "opencode",
   "provider": "deepseek",
@@ -197,26 +137,20 @@ cat > ~/.callx/spirits/<智能体名>/config.json <<'EOF'
 EOF
 ```
 
-Claude CLI 的智能体将 `cli` 改为 `"claude"`，`provider` 改为对应的提供商名（如 `"minimax"`）。
+然后：
 
----
+```bash
+callx -l
+callx my-agent
+```
 
-## 注意事项
+## 约定
 
-- `providers.json` 含有 API Key，已被 `.gitignore` 排除，**请勿手动提交**
-- `skills/` 目录下的软链接由 `call` 脚本自动维护，无需手动管理
-- `skill-packs/` 是技能的唯一来源，修改技能只需改这里，所有智能体立即生效
-
----
+- `providers.json` 是唯一运行时 provider 配置
+- `skillpacks/` 是技能源目录
+- `sprites/` 是所有 AI 角色目录
+- 每个 sprite 启动时会自动把 `skill_links` 链接到自己的 `skills/`
 
 ## 许可证
 
-本项目采用 [GPL-3.0](LICENSE) 许可证。
-
----
-
-现在，是一个 AI 的时代。接下来，是思想的竞赛，是精神世界的比拼。
-
-换一种思路，理清思路后，走出电脑。
-
-感谢郭小姐一路相伴。
+[GPL-3.0](LICENSE)
