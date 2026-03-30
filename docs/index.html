@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>callx — AI 智能体召唤台</title>
+  <meta name="description" content="一键切换、统一管理多个 AI 运行环境。让 Claude Code、OpenCode 等智能体随叫随到。">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=Noto+Sans+SC:wght@300;400;500;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/docsify@4/lib/themes/vue.css">
+  <style>
+    :root {
+      --accent: #7c6cf2;
+      --accent-rgb: 124, 108, 242;
+      --sidebar-bg: #0d0c14;
+      --code-bg: rgba(124, 108, 242, 0.08);
+    }
+    body {
+      font-family: 'Noto Sans SC', 'PingFang SC', sans-serif;
+    }
+    .sidebar { background: var(--sidebar-bg); }
+    .markdown-section { max-width: 860px; }
+  </style>
+</head>
+<body>
+  <div id="app">加载中...</div>
+  <script>
+    window.$docsify = {
+      name: 'callx',
+      repo: 'flameOnYou/callx',
+      coverpage: true,
+      loadSidebar: true,
+      subMaxLevel: 2,
+      auto2top: true,
+      search: 'auto',
+      searchMaxAge: 86400000,
+      searchPlaceholder: '搜索...',
+      themeColor: '#7c6cf2',
+    };
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/docsify@4/lib/docsify.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/docsify/lib/plugins/search.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/docsify/lib/plugins/emoji.min.js"></script>
+</body>
+</html>
