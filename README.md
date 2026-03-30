@@ -1,19 +1,11 @@
-<p align="center">
-  <img src="logo.svg" width="120" alt="callx logo" />
-</p>
+# callx
 
-<h1 align="center">callx</h1>
+**AI 智能体召唤台 — 一键切换、统一管理多个 AI 运行环境**
 
-<p align="center">
-  <strong>AI 智能体召唤台 — 一键切换、统一管理多个 AI 运行环境</strong>
-</p>
-
-<p align="center">
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-blue.svg" alt="License" /></a>
-  <a href="https://agentskills.io"><img src="https://img.shields.io/badge/skills-Agent%20Skills-7c6cf2" alt="Agent Skills" /></a>
-  <img src="https://img.shields.io/badge/shell-bash-green.svg" alt="Shell" />
-  <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux-lightgrey.svg" alt="Platform" />
-</p>
+[![License](https://img.shields.io/badge/license-GPL--3.0-blue.svg)](LICENSE)
+[![Agent Skills](https://img.shields.io/badge/skills-Agent%20Skills-7c6cf2)](https://agentskills.io)
+![Shell](https://img.shields.io/badge/shell-bash-green.svg)
+![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux-lightgrey.svg)
 
 ---
 
@@ -23,7 +15,7 @@
 
 直到今晚有感，才终于明白——
 
-召唤,或者说, 请神!
+召唤，或者说，请神！
 
 每一个 AI，都是一个可以被召唤的灵。它们各有性格，各有所长，等待着被呼唤，等待着去完成某件事。这个项目，就是那个召唤台。
 
@@ -32,6 +24,7 @@
 ## 安装
 
 **前置条件：**
+
 - Python 3
 - 根据所用智能体类型，安装对应的 AI CLI 工具：
   - **OpenCode**：`npm install -g opencode-ai`（[官网](https://opencode.ai)）
@@ -53,9 +46,6 @@ ln -s ~/.callx/call /usr/local/bin/call
 
 ```bash
 export PATH="$HOME/.callx:$PATH"
-```
-
-```bash
 source ~/.zshrc
 ```
 
@@ -87,6 +77,7 @@ cp ~/.callx/providers.example.json ~/.callx/providers.json
 ```
 
 `format` 字段说明：
+
 - `openai` — OpenAI 兼容格式（DeepSeek、通义等）
 - `anthropic` — Anthropic 格式（官方 Claude、MiniMax 兼容接口等）
 
@@ -102,14 +93,14 @@ call -d open-01
 
 ```bash
 call              # 召唤默认智能体
-call claude-01   # 召唤指定智能体
+call claude-01    # 召唤指定智能体
 call -l           # 查看所有可召唤的智能体
 ```
 
-### 完整命令速查
+### 命令速查
 
 | 命令 | 说明 |
-|------|------|
+| --- | --- |
 | `call` | 召唤默认智能体 |
 | `call <智能体名>` | 召唤指定智能体 |
 | `call -l` | 查看所有可召唤的智能体 |
@@ -156,13 +147,13 @@ spirits/<智能体名>/
 
 ## API 提供商管理
 
-**新增提供商**：在 `providers.json` 中加一项，在需要的智能体的 `config.json` 里设置 `"provider": "新名字"` 即可。
+在 `providers.json` 中新增一项，在对应智能体的 `config.json` 里设置 `"provider": "新名字"` 即可。
 
 ---
 
 ## 技能库管理
 
-所有技能统一存放在 `skill-packs/`，遵循 [Agent Skills](https://agentskills.io) 开放规范。各智能体通过 `config.json` 的 `skill_links` 字段声明需要哪些技能，`call` 启动时自动加载。
+所有技能统一存放在 `skill-packs/`，遵循 [Agent Skills](https://agentskills.io) 开放规范。各智能体通过 `config.json` 的 `skill_links` 字段声明所需技能，`call` 启动时自动加载。
 
 **config.json 示例：**
 
@@ -175,16 +166,16 @@ spirits/<智能体名>/
 }
 ```
 
-**新增技能**：将技能目录放入 `skill-packs/`，在需要的智能体的 `config.json` 的 `skill_links` 里加上技能名，下次召唤时自动生效。
+新增技能只需将技能目录放入 `skill-packs/`，在对应智能体的 `skill_links` 里加上技能名，下次召唤时自动生效。
 
 ### 内置技能
 
 | 技能 | 说明 |
-|------|------|
+| --- | --- |
 | `code-skill` | 代码质量检查，自动检测语言并运行对应 linter |
 | `send-email` | 通过 msmtp 发送邮件，支持正文和附件 |
 
-邮件技能依赖 `msmtp`，请确保 `~/.msmtprc` 已配置好 SMTP 账户。
+> 邮件技能依赖 `msmtp`，请确保 `~/.msmtprc` 已配置好 SMTP 账户。
 
 ---
 
