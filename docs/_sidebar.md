@@ -2,4 +2,5 @@
 * [目录结构](structure)
 * [API 提供商管理](providers)
 * [技能库管理](skills)
+* [MCP 服务器管理](mcp)
 * [创建新 Sprite](create-sprite)

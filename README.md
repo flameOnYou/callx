@@ -16,6 +16,8 @@
 ├── skillpacks/
 │   ├── code-skill/
 │   └── send-email/
+├── mcpservers/
+│   └── context7/
 ├── sprites/
 │   ├── claude-01/
 │   └── open-01/
@@ -48,6 +50,7 @@ npm install -g .
 
 - `~/.config/callx/providers.json`
 - `~/.config/callx/skillpacks/`
+- `~/.config/callx/mcpservers/`
 - `~/.config/callx/sprites/`
 
 然后编辑：
@@ -88,6 +91,47 @@ call open-01 -a run "hi"
 call -s
 call update
 ```
+
+## MCP 服务器
+
+callx 统一管理 MCP 服务器，自动为 Claude Code 和 OpenCode 生成各自格式的配置。
+
+### 添加 MCP 服务器
+
+在 `~/.config/callx/mcpservers/` 下创建目录，写入 `mcp.json`：
+
+```bash
+mkdir -p ~/.config/callx/mcpservers/playwright
+cat > ~/.config/callx/mcpservers/playwright/mcp.json <<'EOF'
+{
+  "type": "local",
+  "command": "npx",
+  "args": ["@playwright/mcp@latest"]
+}
+EOF
+```
+
+远程服务器：
+
+```json
+{
+  "type": "remote",
+  "url": "https://api.githubcopilot.com/mcp/",
+  "headers": { "Authorization": "Bearer ${GITHUB_PERSONAL_ACCESS_TOKEN}" }
+}
+```
+
+### 在 Sprite 中引用
+
+在 `config.json` 的 `mcp_links` 中加入服务器名即可：
+
+```json
+{
+  "mcp_links": ["context7", "playwright"]
+}
+```
+
+启动时 callx 自动转换为对应 CLI 的 MCP 格式。详见 [MCP 服务器管理](docs/mcp.md)。
 
 ## 更新
 
@@ -136,7 +180,8 @@ cat > ~/.config/callx/sprites/my-agent/config.json <<'EOF'
   "provider": "deepseek",
   "model": "deepseek/deepseek-chat",
   "autoupdate": true,
-  "skill_links": ["code-skill"]
+  "skill_links": ["code-skill"],
+  "mcp_links": ["context7"]
 }
 EOF
 ```
@@ -152,8 +197,10 @@ call my-agent
 
 - `providers.json` 是唯一运行时 provider 配置
 - `skillpacks/` 是技能源目录
+- `mcpservers/` 是 MCP 服务器源目录
 - `sprites/` 是所有 AI 角色目录
 - 每个 sprite 启动时会自动把 `skill_links` 链接到自己的 `skills/`
+- 每个 sprite 启动时会根据 `mcp_links` 生成对应 CLI 格式的 MCP 配置
 
 ## 许可证
 

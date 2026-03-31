@@ -66,6 +66,7 @@ function bootstrapConfigIfMissing() {
 
   copyMissing(path.join(SCRIPT_DIR, "sprites"), SPRITES_DIR);
   copyMissing(path.join(SCRIPT_DIR, "skillpacks"), SKILLPACKS_DIR);
+  copyMissing(path.join(SCRIPT_DIR, "mcpservers"), path.join(CONFIG_BASE, "mcpservers"));
 
   if (!fileExists(DEFAULT_FILE) && fileExists(path.join(SPRITES_DIR, "open-01"))) {
     fs.writeFileSync(DEFAULT_FILE, "open-01\n", "utf8");
@@ -120,32 +121,130 @@ function ensureReady() {
   }
 }
 
+function getSubSkills(dir) {
+  const subs = [];
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    if (entry.isDirectory() && fileExists(path.join(dir, entry.name, "SKILL.md"))) {
+      subs.push(entry.name);
+    }
+  }
+  return subs;
+}
+
 function syncSkills(sprite) {
   const config = getSpriteConfig(sprite);
   const links = Array.isArray(config.skill_links) ? config.skill_links : [];
   const skillsDir = path.join(SPRITES_DIR, sprite, "skills");
   ensureDir(skillsDir);
 
-  for (const entry of fs.readdirSync(skillsDir, { withFileTypes: true })) {
-    const fullPath = path.join(skillsDir, entry.name);
-    if (!links.includes(entry.name) && fs.lstatSync(fullPath).isSymbolicLink()) {
-      fs.unlinkSync(fullPath);
+  const expectedLinks = new Set();
+
+  for (const skill of links) {
+    if (skill.includes("/")) {
+      const target = path.join(SKILLPACKS_DIR, skill);
+      if (!fileExists(target)) {
+        console.error(`警告: skillpacks 中不存在技能 '${skill}'，跳过`);
+        continue;
+      }
+      const linkName = path.basename(skill);
+      expectedLinks.add(linkName);
+      const link = path.join(skillsDir, linkName);
+      if (fileExists(link)) {
+        fs.rmSync(link, { recursive: true, force: true });
+      }
+      const type = process.platform === "win32" ? "junction" : "dir";
+      fs.symlinkSync(target, link, type);
+    } else {
+      const target = path.join(SKILLPACKS_DIR, skill);
+      if (!fileExists(target)) {
+        console.error(`警告: skillpacks 中不存在技能 '${skill}'，跳过`);
+        continue;
+      }
+      const subs = getSubSkills(target);
+      if (subs.length > 0) {
+        for (const sub of subs) {
+          expectedLinks.add(sub);
+          const link = path.join(skillsDir, sub);
+          if (fileExists(link)) {
+            fs.rmSync(link, { recursive: true, force: true });
+          }
+          const type = process.platform === "win32" ? "junction" : "dir";
+          fs.symlinkSync(path.join(target, sub), link, type);
+        }
+      } else {
+        expectedLinks.add(skill);
+        const link = path.join(skillsDir, skill);
+        if (fileExists(link)) {
+          fs.rmSync(link, { recursive: true, force: true });
+        }
+        const type = process.platform === "win32" ? "junction" : "dir";
+        fs.symlinkSync(target, link, type);
+      }
     }
   }
 
-  for (const skill of links) {
-    const target = path.join(SKILLPACKS_DIR, skill);
-    if (!fileExists(target)) {
-      console.error(`警告: skillpacks 中不存在技能 '${skill}'，跳过`);
+  for (const entry of fs.readdirSync(skillsDir, { withFileTypes: true })) {
+    const fullPath = path.join(skillsDir, entry.name);
+    if (!expectedLinks.has(entry.name) && fs.lstatSync(fullPath).isSymbolicLink()) {
+      fs.unlinkSync(fullPath);
+    }
+  }
+}
+
+function syncMcp(sprite) {
+  const config = getSpriteConfig(sprite);
+  const links = Array.isArray(config.mcp_links) ? config.mcp_links : [];
+  if (links.length === 0) return {};
+
+  const servers = {};
+  for (const name of links) {
+    const mcpFile = path.join(CONFIG_BASE, "mcpservers", name, "mcp.json");
+    if (!fileExists(mcpFile)) {
+      console.error(`警告: mcpservers 中不存在 MCP 服务器 '${name}'，跳过`);
       continue;
     }
-    const link = path.join(skillsDir, skill);
-    if (fileExists(link)) {
-      fs.rmSync(link, { recursive: true, force: true });
-    }
-    const type = process.platform === "win32" ? "junction" : "dir";
-    fs.symlinkSync(target, link, type);
+    const def = readJson(mcpFile);
+    if (def.enabled === false) continue;
+    servers[name] = def;
   }
+  return servers;
+}
+
+function buildClaudeMcpJson(servers) {
+  const result = {};
+  for (const [name, def] of Object.entries(servers)) {
+    if (def.type === "remote") {
+      result[name] = { type: "http", url: def.url };
+      if (def.headers) result[name].headers = def.headers;
+    } else {
+      result[name] = { command: def.command, args: def.args || [] };
+      if (def.env && Object.keys(def.env).length > 0) {
+        result[name].env = def.env;
+      }
+    }
+  }
+  return result;
+}
+
+function buildOpenCodeMcp(servers) {
+  const result = {};
+  for (const [name, def] of Object.entries(servers)) {
+    if (def.type === "remote") {
+      const entry = { type: "remote", url: def.url };
+      if (def.headers) entry.headers = def.headers;
+      if (def.oauth) entry.oauth = def.oauth;
+      result[name] = entry;
+    } else {
+      const cmdArray = [def.command, ...(def.args || [])];
+      const entry = { type: "local", command: cmdArray, enabled: true };
+      if (def.env && Object.keys(def.env).length > 0) {
+        entry.environment = def.env;
+      }
+      if (def.timeout) entry.timeout = def.timeout;
+      result[name] = entry;
+    }
+  }
+  return result;
 }
 
 function buildOpenCodeConfig(sprite, autoMode) {
@@ -196,6 +295,11 @@ function buildOpenCodeConfig(sprite, autoMode) {
     config.permission = "allow";
   }
 
+  const mcpServers = syncMcp(sprite);
+  if (Object.keys(mcpServers).length > 0) {
+    config.mcp = buildOpenCodeMcp(mcpServers);
+  }
+
   return JSON.stringify(config);
 }
 
@@ -215,7 +319,8 @@ function listSprites() {
     const cli = config.cli || "opencode";
     const provider = config.provider || "-";
     const model = config.model || "-";
-    console.log(`  ${name.padEnd(20)} [${cli.padEnd(10)}] provider=${provider.padEnd(12)} model=${model}`);
+    const mcpCount = Array.isArray(config.mcp_links) ? config.mcp_links.length : 0;
+    console.log(`  ${name.padEnd(20)} [${cli.padEnd(10)}] provider=${provider.padEnd(12)} model=${model} mcp=${mcpCount}`);
   }
 }
 
@@ -238,6 +343,8 @@ function showCurrent(selectedSprite) {
   console.log(`  Model:    ${config.model || "-"}`);
   console.log(`  Base URL: ${baseUrl}`);
   console.log("  Key:      (stored in providers.json)");
+  const mcpLinks = Array.isArray(config.mcp_links) ? config.mcp_links : [];
+  console.log(`  MCP:      ${mcpLinks.length > 0 ? mcpLinks.join(", ") : "-"}`);
 }
 
 function showHelp() {
@@ -407,6 +514,11 @@ function main() {
     if (config.model) {
       forwardArgs.unshift(config.model);
       forwardArgs.unshift("--model");
+    }
+    const mcpServers = syncMcp(sprite);
+    if (Object.keys(mcpServers).length > 0) {
+      const mcpJson = buildClaudeMcpJson(mcpServers);
+      fs.writeFileSync(path.join(spriteDir, ".mcp.json"), JSON.stringify(mcpJson, null, 2), "utf8");
     }
     runCommand("claude", forwardArgs, env);
   }

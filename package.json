@@ -21,6 +21,7 @@
     "providers.example.json",
     "sprites",
     "skillpacks",
+    "mcpservers",
     "!skillpacks/**/__pycache__",
     "!skillpacks/**/*.pyc",
     "README.md",

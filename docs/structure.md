@@ -10,6 +10,7 @@
 ├── package.json
 ├── providers.example.json
 ├── skillpacks/
+├── mcpservers/
 └── sprites/
 ```
 
@@ -19,6 +20,7 @@
 ~/.config/callx/
 ├── providers.json
 ├── skillpacks/
+├── mcpservers/
 ├── sprites/
 └── .default
 ```
@@ -44,7 +46,8 @@ sprites/<sprite 名>/
   "provider": "deepseek",
   "model": "deepseek/deepseek-chat",
   "autoupdate": true,
-  "skill_links": ["code-skill", "send-email"]
+  "skill_links": ["code-skill", "send-email"],
+  "mcp_links": ["context7"]
 }
 ```
 
@@ -56,4 +59,5 @@ sprites/<sprite 名>/
 | `provider` | `providers.json` 中的提供商名 |
 | `model` | 模型 ID，格式为 `提供商/模型名` |
 | `autoupdate` | 是否自动更新智能体 |
-| `skill_links` | 需要的技能列表 |
+| `skill_links` | 需要的技能列表，支持路径写法如 `"devops/docker"` |
+| `mcp_links` | 需要的 MCP 服务器列表 |
