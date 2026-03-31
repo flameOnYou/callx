@@ -2,116 +2,30 @@
 
 const fs = require("fs");
 const path = require("path");
-const os = require("os");
 const { spawnSync } = require("child_process");
+const {
+  CONFIG_BASE,
+  PROVIDERS_FILE,
+  SPRITES_DIR,
+  buildClaudeMcpJson,
+  buildOpenCodeConfig,
+  ensureReady,
+  fileExists,
+  getDefault,
+  getProvider,
+  getProviderValue,
+  getSpriteConfig,
+  listSpriteNames,
+  setDefault,
+  syncMcp,
+  syncSkills,
+} = require("./lib/runtime");
 
-const SCRIPT_DIR = __dirname;
-const CONFIG_BASE = path.join(process.env.XDG_CONFIG_HOME || path.join(os.homedir(), ".config"), "callx");
-const SPRITES_DIR = path.join(CONFIG_BASE, "sprites");
-const SKILLPACKS_DIR = path.join(CONFIG_BASE, "skillpacks");
-const PROVIDERS_FILE = path.join(CONFIG_BASE, "providers.json");
-const DEFAULT_FILE = path.join(CONFIG_BASE, ".default");
 const PACKAGE_NAME = "@greenhill/callx";
 const COMMAND_NAME = "call";
 
-function fileExists(target) {
-  return fs.existsSync(target);
-}
-
-function readJson(file) {
-  try {
-    return JSON.parse(fs.readFileSync(file, "utf8"));
-  } catch {
-    return {};
-  }
-}
-
-function ensureDir(dir) {
-  fs.mkdirSync(dir, { recursive: true });
-}
-
-function copyMissing(srcRoot, dstRoot) {
-  if (!fileExists(srcRoot)) {
-    return;
-  }
-  ensureDir(dstRoot);
-  for (const entry of fs.readdirSync(srcRoot, { withFileTypes: true })) {
-    const src = path.join(srcRoot, entry.name);
-    const dst = path.join(dstRoot, entry.name);
-    if (fileExists(dst)) {
-      continue;
-    }
-    if (entry.isDirectory()) {
-      fs.cpSync(src, dst, { recursive: true });
-    } else {
-      fs.copyFileSync(src, dst);
-    }
-  }
-}
-
-function bootstrapConfigIfMissing() {
-  const needsBootstrap = !fileExists(PROVIDERS_FILE) || !fileExists(SPRITES_DIR) || !fileExists(SKILLPACKS_DIR);
-  if (!needsBootstrap) {
-    return false;
-  }
-
-  ensureDir(CONFIG_BASE);
-  ensureDir(SPRITES_DIR);
-  ensureDir(SKILLPACKS_DIR);
-
-  const providersSeed = path.join(SCRIPT_DIR, "providers.example.json");
-  if (fileExists(providersSeed) && !fileExists(PROVIDERS_FILE)) {
-    fs.copyFileSync(providersSeed, PROVIDERS_FILE);
-  }
-
-  copyMissing(path.join(SCRIPT_DIR, "sprites"), SPRITES_DIR);
-  copyMissing(path.join(SCRIPT_DIR, "skillpacks"), SKILLPACKS_DIR);
-  copyMissing(path.join(SCRIPT_DIR, "mcpservers"), path.join(CONFIG_BASE, "mcpservers"));
-
-  if (!fileExists(DEFAULT_FILE) && fileExists(path.join(SPRITES_DIR, "open-01"))) {
-    fs.writeFileSync(DEFAULT_FILE, "open-01\n", "utf8");
-  }
-
-  return true;
-}
-
-function getDefault() {
-  if (!fileExists(DEFAULT_FILE)) {
-    return "";
-  }
-  return fs.readFileSync(DEFAULT_FILE, "utf8").trim();
-}
-
-function setDefault(name) {
-  const dir = path.join(SPRITES_DIR, name);
-  if (!fileExists(dir)) {
-    fail(`错误: sprite '${name}' 不存在`);
-  }
-  fs.writeFileSync(DEFAULT_FILE, `${name}\n`, "utf8");
-  console.log(`已设为默认 sprite: ${name}`);
-}
-
-function getSpriteConfig(sprite) {
-  return readJson(path.join(SPRITES_DIR, sprite, "config.json"));
-}
-
-function getCli(sprite) {
-  const config = getSpriteConfig(sprite);
-  return config.cli || "opencode";
-}
-
-function getProviderValue(providerName, field) {
-  const providers = readJson(PROVIDERS_FILE);
-  return providers[providerName]?.[field] || "";
-}
-
-function getProvider(providerName) {
-  const providers = readJson(PROVIDERS_FILE);
-  return providers[providerName] || {};
-}
-
-function ensureReady() {
-  const bootstrapped = bootstrapConfigIfMissing();
+function ensureReadyOrFail() {
+  const bootstrapped = ensureReady();
   if (bootstrapped) {
     console.error(`已初始化配置目录: ${CONFIG_BASE}`);
     console.error(`请编辑: ${PROVIDERS_FILE}`);
@@ -121,200 +35,14 @@ function ensureReady() {
   }
 }
 
-function getSubSkills(dir) {
-  const subs = [];
-  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-    if (entry.isDirectory() && fileExists(path.join(dir, entry.name, "SKILL.md"))) {
-      subs.push(entry.name);
-    }
-  }
-  return subs;
-}
-
-function syncSkills(sprite) {
-  const config = getSpriteConfig(sprite);
-  const links = Array.isArray(config.skill_links) ? config.skill_links : [];
-  const skillsDir = path.join(SPRITES_DIR, sprite, "skills");
-  ensureDir(skillsDir);
-
-  const expectedLinks = new Set();
-
-  for (const skill of links) {
-    if (skill.includes("/")) {
-      const target = path.join(SKILLPACKS_DIR, skill);
-      if (!fileExists(target)) {
-        console.error(`警告: skillpacks 中不存在技能 '${skill}'，跳过`);
-        continue;
-      }
-      const linkName = path.basename(skill);
-      expectedLinks.add(linkName);
-      const link = path.join(skillsDir, linkName);
-      if (fileExists(link)) {
-        fs.rmSync(link, { recursive: true, force: true });
-      }
-      const type = process.platform === "win32" ? "junction" : "dir";
-      fs.symlinkSync(target, link, type);
-    } else {
-      const target = path.join(SKILLPACKS_DIR, skill);
-      if (!fileExists(target)) {
-        console.error(`警告: skillpacks 中不存在技能 '${skill}'，跳过`);
-        continue;
-      }
-      const subs = getSubSkills(target);
-      if (subs.length > 0) {
-        for (const sub of subs) {
-          expectedLinks.add(sub);
-          const link = path.join(skillsDir, sub);
-          if (fileExists(link)) {
-            fs.rmSync(link, { recursive: true, force: true });
-          }
-          const type = process.platform === "win32" ? "junction" : "dir";
-          fs.symlinkSync(path.join(target, sub), link, type);
-        }
-      } else {
-        expectedLinks.add(skill);
-        const link = path.join(skillsDir, skill);
-        if (fileExists(link)) {
-          fs.rmSync(link, { recursive: true, force: true });
-        }
-        const type = process.platform === "win32" ? "junction" : "dir";
-        fs.symlinkSync(target, link, type);
-      }
-    }
-  }
-
-  for (const entry of fs.readdirSync(skillsDir, { withFileTypes: true })) {
-    const fullPath = path.join(skillsDir, entry.name);
-    if (!expectedLinks.has(entry.name) && fs.lstatSync(fullPath).isSymbolicLink()) {
-      fs.unlinkSync(fullPath);
-    }
-  }
-}
-
-function syncMcp(sprite) {
-  const config = getSpriteConfig(sprite);
-  const links = Array.isArray(config.mcp_links) ? config.mcp_links : [];
-  if (links.length === 0) return {};
-
-  const servers = {};
-  for (const name of links) {
-    const mcpFile = path.join(CONFIG_BASE, "mcpservers", name, "mcp.json");
-    if (!fileExists(mcpFile)) {
-      console.error(`警告: mcpservers 中不存在 MCP 服务器 '${name}'，跳过`);
-      continue;
-    }
-    const def = readJson(mcpFile);
-    if (def.enabled === false) continue;
-    servers[name] = def;
-  }
-  return servers;
-}
-
-function buildClaudeMcpJson(servers) {
-  const result = {};
-  for (const [name, def] of Object.entries(servers)) {
-    if (def.type === "remote") {
-      result[name] = { type: "http", url: def.url };
-      if (def.headers) result[name].headers = def.headers;
-    } else {
-      result[name] = { command: def.command, args: def.args || [] };
-      if (def.env && Object.keys(def.env).length > 0) {
-        result[name].env = def.env;
-      }
-    }
-  }
-  return result;
-}
-
-function buildOpenCodeMcp(servers) {
-  const result = {};
-  for (const [name, def] of Object.entries(servers)) {
-    if (def.type === "remote") {
-      const entry = { type: "remote", url: def.url };
-      if (def.headers) entry.headers = def.headers;
-      if (def.oauth) entry.oauth = def.oauth;
-      result[name] = entry;
-    } else {
-      const cmdArray = [def.command, ...(def.args || [])];
-      const entry = { type: "local", command: cmdArray, enabled: true };
-      if (def.env && Object.keys(def.env).length > 0) {
-        entry.environment = def.env;
-      }
-      if (def.timeout) entry.timeout = def.timeout;
-      result[name] = entry;
-    }
-  }
-  return result;
-}
-
-function buildOpenCodeConfig(sprite, autoMode) {
-  const spriteCfg = getSpriteConfig(sprite);
-  const providers = readJson(PROVIDERS_FILE);
-  const providerName = spriteCfg.provider || "";
-
-  const config = {
-    $schema: "https://opencode.ai/config.json",
-  };
-
-  if (spriteCfg.model) {
-    config.model = spriteCfg.model;
-  }
-  if (spriteCfg.autoupdate) {
-    config.autoupdate = spriteCfg.autoupdate;
-  }
-  if (Array.isArray(spriteCfg.skill_links) && spriteCfg.skill_links.length > 0) {
-    config.skills = { paths: ["./skills"] };
-  } else if (spriteCfg.skills) {
-    config.skills = spriteCfg.skills;
-  }
-
-  if (providerName && providers[providerName]) {
-    const prov = providers[providerName];
-    if (prov.format === "anthropic") {
-      config.provider = {
-        anthropic: {
-          options: {
-            apiKey: prov.api_key || "",
-            baseURL: prov.base_url || "",
-          },
-        },
-      };
-    } else {
-      config.provider = {
-        [providerName]: {
-          options: {
-            apiKey: prov.api_key || "",
-            baseURL: prov.base_url || "",
-          },
-        },
-      };
-    }
-  }
-
-  if (autoMode) {
-    config.permission = "allow";
-  }
-
-  const mcpServers = syncMcp(sprite);
-  if (Object.keys(mcpServers).length > 0) {
-    config.mcp = buildOpenCodeMcp(mcpServers);
-  }
-
-  return JSON.stringify(config);
-}
-
 function listSprites() {
-  ensureReady();
+  ensureReadyOrFail();
   console.log("可用 sprites:");
   if (!fileExists(SPRITES_DIR)) {
     return;
   }
 
-  for (const entry of fs.readdirSync(SPRITES_DIR, { withFileTypes: true })) {
-    if (!entry.isDirectory()) {
-      continue;
-    }
-    const name = entry.name;
+  for (const name of listSpriteNames()) {
     const config = getSpriteConfig(name);
     const cli = config.cli || "opencode";
     const provider = config.provider || "-";
@@ -325,7 +53,7 @@ function listSprites() {
 }
 
 function showCurrent(selectedSprite) {
-  ensureReady();
+  ensureReadyOrFail();
   const current = selectedSprite || getDefault();
   if (!current) {
     fail(`未设置默认 sprite，请先运行 ${COMMAND_NAME} -d <名>`);
@@ -467,8 +195,12 @@ function main() {
   }
 
   if (args.setDefault) {
-    ensureReady();
-    setDefault(args.setDefault);
+    ensureReadyOrFail();
+    try {
+      setDefault(args.setDefault);
+    } catch (error) {
+      fail(`错误: ${error.message}`);
+    }
     return;
   }
 
@@ -477,7 +209,7 @@ function main() {
     return;
   }
 
-  ensureReady();
+  ensureReadyOrFail();
 
   const sprite = args.sprite || getDefault();
   if (!sprite) {

@@ -5,6 +5,7 @@
 `callx` 是一个 Node CLI：
 
 - 全局安装命令是 `call`
+- 交互式配置器命令是 `callcli`
 - 用户配置统一读取 `~/.config/callx`
 - 第一次运行时如果配置目录不存在，会自动初始化
 
@@ -24,6 +25,18 @@
 └── .default
 ```
 
+除了 `call` 这个运行时切换命令，现在还提供一个交互式配置入口：
+
+```bash
+callcli
+```
+
+`callcli` 会进入一个 TUI 主菜单，支持：
+
+- 管理 `providers.json`：provider 名、备注、URL、API Key、格式的增删改查
+- 管理 `sprites/`：通过列表选择配置 provider、skills、MCP、默认智能体
+- 在 git 仓库中创建 `worktree`：封装常用创建流程，并可直接进入新目录的子 shell
+
 ## 安装
 
 前置条件：
@@ -42,6 +55,12 @@ npm install -g @greenhill/callx
 
 ```bash
 npm install -g .
+```
+
+安装后可直接打开交互式配置器：
+
+```bash
+callcli
 ```
 
 ## 配置
@@ -90,7 +109,21 @@ call claude-01
 call open-01 -a run "hi"
 call -s
 call update
+callcli
 ```
+
+## callcli
+
+`callcli` 是新的 TUI 配置入口，打开后先选主操作，再进入对应流程：
+
+- **编辑大模型供应商**：对 `providers.json` 做增删改查，覆盖 `name`、`remark`、`base_url`、`api_key`、`format`
+- **编辑智能体**：列表式配置 `provider`、`skill_links`、`mcp_links`、`cli`、`model`、`autoupdate`
+- **创建 worktree**：对 `git worktree add` 做交互封装，创建成功后可直接进入新 worktree 的子 shell
+
+说明：
+
+- 智能体编辑流程尽量避免用户手工输入，重点配置都走列表选择
+- worktree 创建后，`callcli` 不能直接修改父 shell 的当前目录，所以采用“进入新目录下的子 shell”作为可执行替代方案
 
 ## MCP 服务器
 

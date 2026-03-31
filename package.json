@@ -14,10 +14,13 @@
     "release:major:publish": "node ./scripts/release.js major --publish"
   },
   "bin": {
-    "call": "./callx"
+    "call": "./callx",
+    "callcli": "./callcli"
   },
   "files": [
     "callx",
+    "callcli",
+    "lib",
     "providers.example.json",
     "sprites",
     "skillpacks",

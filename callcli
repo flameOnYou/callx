@@ -1,0 +1,1064 @@
+#!/usr/bin/env node
+
+const path = require("path");
+const { spawnSync } = require("child_process");
+const {
+  CONFIG_BASE,
+  PROVIDERS_FILE,
+  clearDefault,
+  createSpriteFromTemplate,
+  deleteSprite,
+  ensureReady,
+  getAvailableMcpServers,
+  getAvailableSkillLinks,
+  getDefault,
+  getProvider,
+  getProviders,
+  getSpriteConfig,
+  listProviderNames,
+  listSpriteNames,
+  saveProviders,
+  saveSpriteConfig,
+  setDefault,
+  syncSkills,
+} = require("./lib/runtime");
+const { TerminalUI } = require("./lib/tui");
+const {
+  createWorktreeForExistingBranch,
+  createWorktreeForNewBranch,
+  ensureUniqueBranchName,
+  findGitRoot,
+  getAvailableBranchesForWorktree,
+  getCurrentBranch,
+  listWorktrees,
+  suggestBranchName,
+  suggestWorktreePath,
+} = require("./lib/worktree");
+
+const PROVIDER_FORMAT_OPTIONS = [
+  { label: "OpenAI 兼容", value: "openai", hint: "OpenCode 直接用 provider 名做键名" },
+  { label: "Anthropic 兼容", value: "anthropic", hint: "Claude / Anthropic 兼容线路" },
+];
+
+const CLI_OPTIONS = [
+  { label: "OpenCode", value: "opencode", hint: "通用 OpenAI 兼容配置" },
+  { label: "Claude Code", value: "claude", hint: "仅适合 Anthropic 兼容 provider" },
+];
+
+function showHelp() {
+  console.log(`callcli - callx 的交互式 TUI 配置器
+
+用法:
+  callcli
+  callcli --help
+
+说明:
+  - 启动后进入主菜单
+  - Provider 管理支持 name / remark / url / api_key / format 的增删改查
+  - Sprite 管理提供纯列表式的 provider / skill / MCP / CLI / model 配置流程
+  - Worktree 创建完成后可直接进入新目录下的子 shell
+
+配置目录:
+  ${CONFIG_BASE}
+  ${PROVIDERS_FILE}`);
+}
+
+function fail(message) {
+  console.error(message);
+  process.exit(1);
+}
+
+function sanitizeName(value, fallback = "item") {
+  const normalized = value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+  return normalized || fallback;
+}
+
+function uniqueName(baseName, existingNames) {
+  const base = sanitizeName(baseName, "item");
+  const names = new Set(existingNames);
+  if (!names.has(base)) {
+    return base;
+  }
+  let index = 2;
+  while (names.has(`${base}-${index}`)) {
+    index += 1;
+  }
+  return `${base}-${index}`;
+}
+
+function buildProviderItems(cli) {
+  const providers = getProviders();
+  const names = listProviderNames();
+  const filtered = names.filter((name) => {
+    if (cli !== "claude") {
+      return true;
+    }
+    return (providers[name]?.format || "openai") === "anthropic";
+  });
+
+  const items = [{ label: "不设置 provider", value: "", hint: "保留为空，运行时走环境变量或 CLI 默认配置" }];
+  for (const name of filtered) {
+    const provider = providers[name];
+    items.push({
+      label: name,
+      value: name,
+      hint: `${provider.format || "openai"}  ${provider.remark || "-"}`,
+    });
+  }
+  return items;
+}
+
+function buildModelItems(cli, providerName, currentModel = "") {
+  const seen = new Set();
+  const items = [{ label: "不设置 model", value: "", hint: "移除 config.json 里的 model 字段" }];
+  if (currentModel) {
+    seen.add(currentModel);
+    items.push({ label: currentModel, value: currentModel, hint: "当前值" });
+  }
+
+  for (const spriteName of listSpriteNames()) {
+    const config = getSpriteConfig(spriteName);
+    if (!config.model || seen.has(config.model)) {
+      continue;
+    }
+    const sameProvider = providerName && config.provider === providerName;
+    const sameCli = config.cli === cli;
+    if (!sameProvider && !sameCli) {
+      continue;
+    }
+    seen.add(config.model);
+    items.push({
+      label: config.model,
+      value: config.model,
+      hint: `来自 ${spriteName}`,
+    });
+  }
+
+  return items;
+}
+
+function buildSpriteBaseName(sourceName, providerName, cli) {
+  if (sourceName) {
+    return `${sourceName}-copy`;
+  }
+  if (providerName) {
+    return `${providerName}-${cli}`;
+  }
+  return `${cli}-sprite`;
+}
+
+function normalizeSpriteConfig(config) {
+  const next = { ...config };
+  if (!next.provider) {
+    delete next.provider;
+  }
+  if (!next.model) {
+    delete next.model;
+  }
+  if (!Array.isArray(next.skill_links)) {
+    next.skill_links = [];
+  }
+  if (!Array.isArray(next.mcp_links)) {
+    next.mcp_links = [];
+  }
+  delete next.skills;
+  return next;
+}
+
+function getReferencingSprites(providerName) {
+  return listSpriteNames().filter((spriteName) => getSpriteConfig(spriteName).provider === providerName);
+}
+
+function launchShell(worktreePath) {
+  const shell = process.env.SHELL || "/bin/zsh";
+  const result = spawnSync(shell, ["-i"], {
+    cwd: worktreePath,
+    stdio: "inherit",
+  });
+  if (result.error) {
+    fail(result.error.message);
+  }
+  process.exit(result.status === null ? 1 : result.status);
+}
+
+async function chooseProviderFormat(tui, currentValue = "openai") {
+  const initialItems = PROVIDER_FORMAT_OPTIONS.map((item) => ({
+    ...item,
+    label: item.value === currentValue ? `${item.label} [当前]` : item.label,
+  }));
+  return tui.select({
+    title: "选择 Provider 格式",
+    items: initialItems,
+  });
+}
+
+async function chooseCli(tui, currentValue = "opencode") {
+  return tui.select({
+    title: "选择智能体 CLI",
+    items: CLI_OPTIONS.map((item) => ({
+      ...item,
+      label: item.value === currentValue ? `${item.label} [当前]` : item.label,
+    })),
+  });
+}
+
+async function chooseProvider(tui, cli, currentValue = "") {
+  return tui.select({
+    title: "选择 Provider",
+    description: cli === "claude" ? ["Claude 智能体只展示 anthropic 格式的 provider。"] : [],
+    items: buildProviderItems(cli).map((item) => ({
+      ...item,
+      label: item.value === currentValue ? `${item.label} [当前]` : item.label,
+    })),
+  });
+}
+
+async function chooseModel(tui, cli, providerName, currentValue = "") {
+  return tui.select({
+    title: "选择 Model",
+    description: ["这里不要求打字，候选项来自当前配置中已经用过的 model。"],
+    items: buildModelItems(cli, providerName, currentValue).map((item) => ({
+      ...item,
+      label: item.value === currentValue ? `${item.label} [当前]` : item.label,
+    })),
+  });
+}
+
+async function chooseBoolean(tui, title, description, currentValue) {
+  return tui.select({
+    title,
+    description,
+    items: [
+      { label: currentValue ? "开启 [当前]" : "开启", value: true, hint: "写入 true" },
+      { label: !currentValue ? "关闭 [当前]" : "关闭", value: false, hint: "写入 false" },
+    ],
+  });
+}
+
+async function chooseSkills(tui, currentValues) {
+  const allSkills = getAvailableSkillLinks();
+  if (allSkills.length === 0) {
+    await tui.message({
+      title: "没有可选技能",
+      lines: ["当前配置目录下没有发现可用 skillpack。"],
+    });
+    return currentValues;
+  }
+  const selected = await tui.multiSelect({
+    title: "配置技能",
+    description: ["空格切换，Enter 保存。"],
+    items: allSkills.map((name) => ({ label: name, value: name })),
+    selectedValues: currentValues,
+  });
+  return selected === null ? currentValues : selected;
+}
+
+async function chooseMcps(tui, currentValues) {
+  const allMcps = getAvailableMcpServers();
+  if (allMcps.length === 0) {
+    await tui.message({
+      title: "没有可选 MCP",
+      lines: ["当前配置目录下没有发现 MCP 服务器定义。"],
+    });
+    return currentValues;
+  }
+  const selected = await tui.multiSelect({
+    title: "配置 MCP",
+    description: ["空格切换，Enter 保存。"],
+    items: allMcps.map((name) => ({ label: name, value: name })),
+    selectedValues: currentValues,
+  });
+  return selected === null ? currentValues : selected;
+}
+
+async function editProviderForm(tui, originalName = "") {
+  const provider = originalName ? getProvider(originalName) : {};
+
+  while (true) {
+    const name = await tui.input({
+      title: originalName ? "编辑 Provider" : "新建 Provider",
+      description: ["Provider 名会被 sprite 的 provider 字段引用。"],
+      label: "名称",
+      defaultValue: originalName,
+    });
+    if (name === null) {
+      return null;
+    }
+    const trimmedName = sanitizeName(name, "");
+    if (!trimmedName) {
+      continue;
+    }
+    if (trimmedName !== originalName && listProviderNames().includes(trimmedName)) {
+      await tui.message({
+        title: "名称已存在",
+        lines: [`provider '${trimmedName}' 已存在，请换一个名字。`],
+      });
+      continue;
+    }
+
+    const format = await chooseProviderFormat(tui, provider.format || "openai");
+    if (format === null) {
+      return null;
+    }
+    const baseUrl = await tui.input({
+      title: originalName ? "编辑 Provider" : "新建 Provider",
+      label: "Base URL",
+      defaultValue: provider.base_url || "",
+    });
+    if (baseUrl === null) {
+      return null;
+    }
+    const apiKey = await tui.input({
+      title: originalName ? "编辑 Provider" : "新建 Provider",
+      label: "API Key",
+      defaultValue: provider.api_key || "",
+      secret: true,
+      allowEmpty: true,
+    });
+    if (apiKey === null) {
+      return null;
+    }
+    const remark = await tui.input({
+      title: originalName ? "编辑 Provider" : "新建 Provider",
+      label: "备注",
+      defaultValue: provider.remark || "",
+      allowEmpty: true,
+      placeholder: "可留空",
+    });
+    if (remark === null) {
+      return null;
+    }
+
+    return {
+      name: trimmedName,
+      config: {
+        base_url: baseUrl.trim(),
+        api_key: apiKey,
+        format,
+        remark: remark.trim(),
+      },
+    };
+  }
+}
+
+async function showProviderDetails(tui, providerName) {
+  const provider = getProvider(providerName);
+  const referencedBy = getReferencingSprites(providerName);
+  await tui.message({
+    title: `Provider: ${providerName}`,
+    lines: [
+      `format: ${provider.format || "-"}`,
+      `base_url: ${provider.base_url || "-"}`,
+      `api_key: ${provider.api_key ? "已配置" : "-"}`,
+      `remark: ${provider.remark || "-"}`,
+      `被以下智能体引用: ${referencedBy.length > 0 ? referencedBy.join(", ") : "-"}`,
+    ],
+  });
+}
+
+async function saveProviderChanges(tui, originalName) {
+  const result = await editProviderForm(tui, originalName);
+  if (!result) {
+    return;
+  }
+
+  const providers = getProviders();
+  const { name, config } = result;
+
+  if (originalName && name !== originalName) {
+    delete providers[originalName];
+    for (const spriteName of getReferencingSprites(originalName)) {
+      const spriteConfig = getSpriteConfig(spriteName);
+      spriteConfig.provider = name;
+      saveSpriteConfig(spriteName, normalizeSpriteConfig(spriteConfig));
+    }
+  }
+
+  providers[name] = config;
+  saveProviders(providers);
+
+  await tui.message({
+    title: originalName ? "Provider 已更新" : "Provider 已创建",
+    lines: [`${name} 已写入 ${PROVIDERS_FILE}`],
+  });
+}
+
+async function deleteProviderFlow(tui, providerName) {
+  const referenced = getReferencingSprites(providerName);
+  const providers = getProviders();
+
+  if (referenced.length > 0) {
+    const replacement = await tui.select({
+      title: "Provider 正在被使用",
+      description: [
+        `以下智能体正在引用 ${providerName}: ${referenced.join(", ")}`,
+        "删除前请先为它们选择一个替代 provider，或者清空 provider。",
+      ],
+      items: [
+        { label: "清空这些智能体的 provider", value: "__CLEAR__", hint: "删除后相关 sprite 将不再绑定 provider" },
+        ...listProviderNames()
+          .filter((name) => name !== providerName)
+          .map((name) => ({ label: name, value: name, hint: getProvider(name).remark || "-" })),
+      ],
+    });
+
+    if (replacement === null) {
+      return;
+    }
+
+    for (const spriteName of referenced) {
+      const spriteConfig = getSpriteConfig(spriteName);
+      if (replacement === "__CLEAR__") {
+        delete spriteConfig.provider;
+      } else {
+        spriteConfig.provider = replacement;
+      }
+      saveSpriteConfig(spriteName, normalizeSpriteConfig(spriteConfig));
+    }
+  }
+
+  const confirmed = await tui.confirm({
+    title: "确认删除 Provider",
+    lines: [`将删除 provider '${providerName}'。`],
+    confirmLabel: "删除",
+  });
+  if (!confirmed) {
+    return;
+  }
+
+  delete providers[providerName];
+  saveProviders(providers);
+  await tui.message({
+    title: "Provider 已删除",
+    lines: [`${providerName} 已从 providers.json 中移除。`],
+  });
+}
+
+async function providersMenu(tui) {
+  while (true) {
+    const providerNames = listProviderNames();
+    const selected = await tui.select({
+      title: "Provider 管理",
+      description: [`配置文件: ${PROVIDERS_FILE}`],
+      items: [
+        { label: "新建 Provider", value: "__create__", hint: "新增一条 provider 配置" },
+        ...providerNames.map((name) => {
+          const provider = getProvider(name);
+          return {
+            label: name,
+            value: name,
+            hint: `${provider.format || "openai"}  ${provider.remark || "-"}`,
+          };
+        }),
+        { label: "返回主菜单", value: "__back__" },
+      ],
+    });
+
+    if (selected === null || selected === "__back__") {
+      return;
+    }
+    if (selected === "__create__") {
+      await saveProviderChanges(tui, "");
+      continue;
+    }
+
+    const action = await tui.select({
+      title: `Provider: ${selected}`,
+      items: [
+        { label: "查看详情", value: "show" },
+        { label: "编辑", value: "edit" },
+        { label: "删除", value: "delete" },
+        { label: "返回", value: "back" },
+      ],
+    });
+
+    if (action === null || action === "back") {
+      continue;
+    }
+    if (action === "show") {
+      await showProviderDetails(tui, selected);
+      continue;
+    }
+    if (action === "edit") {
+      await saveProviderChanges(tui, selected);
+      continue;
+    }
+    if (action === "delete") {
+      await deleteProviderFlow(tui, selected);
+    }
+  }
+}
+
+async function chooseSpriteDefaultsAction(tui, spriteName) {
+  const action = await tui.select({
+    title: "创建完成后怎么处理",
+    description: [`将创建智能体: ${spriteName}`],
+    items: [
+      { label: "仅创建", value: "create" },
+      { label: "创建并设为默认", value: "create-default" },
+      { label: "取消", value: "cancel" },
+    ],
+  });
+  return action;
+}
+
+async function createSpriteFlow(tui) {
+  const spriteNames = listSpriteNames();
+  const createMode = await tui.select({
+    title: "新建智能体",
+    description: ["智能体创建流程尽量避免打字，默认使用自动生成名称。"],
+    items: [
+      { label: "从空白模板创建", value: "blank" },
+      ...(spriteNames.length > 0 ? [{ label: "复制现有智能体后调整", value: "clone", hint: "最适合快速起一个变体" }] : []),
+      { label: "返回", value: "back" },
+    ],
+  });
+
+  if (createMode === null || createMode === "back") {
+    return;
+  }
+
+  let sourceName = "";
+  let sourceConfig = {};
+  if (createMode === "clone") {
+    sourceName = await tui.select({
+      title: "选择模板智能体",
+      items: spriteNames.map((name) => ({
+        label: name,
+        value: name,
+        hint: `${getSpriteConfig(name).cli || "opencode"}  ${getSpriteConfig(name).provider || "-"}`,
+      })),
+    });
+    if (sourceName === null) {
+      return;
+    }
+    sourceConfig = getSpriteConfig(sourceName);
+  }
+
+  const cli = await chooseCli(tui, sourceConfig.cli || "opencode");
+  if (cli === null) {
+    return;
+  }
+  const provider = await chooseProvider(tui, cli, sourceConfig.provider || "");
+  if (provider === null) {
+    return;
+  }
+  const model = await chooseModel(tui, cli, provider, sourceConfig.model || "");
+  if (model === null) {
+    return;
+  }
+  const autoupdate = await chooseBoolean(tui, "设置 autoupdate", ["这里只写入 config.json，不会立即执行更新。"], Boolean(sourceConfig.autoupdate));
+  if (autoupdate === null) {
+    return;
+  }
+  const skillLinks = await chooseSkills(tui, Array.isArray(sourceConfig.skill_links) ? sourceConfig.skill_links : []);
+  const mcpLinks = await chooseMcps(tui, Array.isArray(sourceConfig.mcp_links) ? sourceConfig.mcp_links : []);
+
+  const suggestedName = uniqueName(buildSpriteBaseName(sourceName, provider, cli), spriteNames);
+  const createAction = await chooseSpriteDefaultsAction(tui, suggestedName);
+  if (createAction === null || createAction === "cancel") {
+    return;
+  }
+
+  createSpriteFromTemplate(suggestedName, sourceName);
+  const nextConfig = normalizeSpriteConfig({
+    ...sourceConfig,
+    cli,
+    provider,
+    model,
+    autoupdate,
+    skill_links: skillLinks,
+    mcp_links: mcpLinks,
+  });
+  saveSpriteConfig(suggestedName, nextConfig);
+  syncSkills(suggestedName);
+
+  if (createAction === "create-default") {
+    setDefault(suggestedName);
+  }
+
+  await tui.message({
+    title: "智能体已创建",
+    lines: [
+      `名称: ${suggestedName}`,
+      `CLI: ${cli}`,
+      `Provider: ${provider || "-"}`,
+      `Model: ${model || "-"}`,
+    ],
+  });
+}
+
+async function showSpriteDetails(tui, spriteName) {
+  const config = getSpriteConfig(spriteName);
+  const isDefault = getDefault() === spriteName;
+  await tui.message({
+    title: `智能体: ${spriteName}`,
+    lines: [
+      `默认: ${isDefault ? "是" : "否"}`,
+      `cli: ${config.cli || "opencode"}`,
+      `provider: ${config.provider || "-"}`,
+      `model: ${config.model || "-"}`,
+      `autoupdate: ${String(Boolean(config.autoupdate))}`,
+      `skills: ${Array.isArray(config.skill_links) && config.skill_links.length > 0 ? config.skill_links.join(", ") : "-"}`,
+      `mcp: ${Array.isArray(config.mcp_links) && config.mcp_links.length > 0 ? config.mcp_links.join(", ") : "-"}`,
+    ],
+  });
+}
+
+async function setSpriteProviderFlow(tui, spriteName) {
+  const config = getSpriteConfig(spriteName);
+  const provider = await chooseProvider(tui, config.cli || "opencode", config.provider || "");
+  if (provider === null) {
+    return;
+  }
+  config.provider = provider;
+  const model = await chooseModel(tui, config.cli || "opencode", provider, config.model || "");
+  if (model === null) {
+    return;
+  }
+  config.model = model;
+  saveSpriteConfig(spriteName, normalizeSpriteConfig(config));
+  await tui.message({
+    title: "Provider 已更新",
+    lines: [`${spriteName} -> provider=${provider || "-"} model=${model || "-"}`],
+  });
+}
+
+async function setSpriteCliFlow(tui, spriteName) {
+  const config = getSpriteConfig(spriteName);
+  const cli = await chooseCli(tui, config.cli || "opencode");
+  if (cli === null) {
+    return;
+  }
+  config.cli = cli;
+  config.provider = await chooseProvider(tui, cli, config.provider || "");
+  if (config.provider === null) {
+    return;
+  }
+  config.model = await chooseModel(tui, cli, config.provider || "", config.model || "");
+  if (config.model === null) {
+    return;
+  }
+  saveSpriteConfig(spriteName, normalizeSpriteConfig(config));
+  await tui.message({
+    title: "CLI 已更新",
+    lines: [`${spriteName} -> cli=${cli}`],
+  });
+}
+
+async function setSpriteSkillsFlow(tui, spriteName) {
+  const config = getSpriteConfig(spriteName);
+  const selected = await chooseSkills(tui, Array.isArray(config.skill_links) ? config.skill_links : []);
+  config.skill_links = selected;
+  saveSpriteConfig(spriteName, normalizeSpriteConfig(config));
+  syncSkills(spriteName);
+  await tui.message({
+    title: "技能已更新",
+    lines: [`${spriteName} 当前技能数: ${selected.length}`],
+  });
+}
+
+async function setSpriteMcpFlow(tui, spriteName) {
+  const config = getSpriteConfig(spriteName);
+  const selected = await chooseMcps(tui, Array.isArray(config.mcp_links) ? config.mcp_links : []);
+  config.mcp_links = selected;
+  saveSpriteConfig(spriteName, normalizeSpriteConfig(config));
+  await tui.message({
+    title: "MCP 已更新",
+    lines: [`${spriteName} 当前 MCP 数: ${selected.length}`],
+  });
+}
+
+async function setSpriteModelFlow(tui, spriteName) {
+  const config = getSpriteConfig(spriteName);
+  const model = await chooseModel(tui, config.cli || "opencode", config.provider || "", config.model || "");
+  if (model === null) {
+    return;
+  }
+  config.model = model;
+  saveSpriteConfig(spriteName, normalizeSpriteConfig(config));
+  await tui.message({
+    title: "Model 已更新",
+    lines: [`${spriteName} -> model=${model || "-"}`],
+  });
+}
+
+async function setSpriteAutoupdateFlow(tui, spriteName) {
+  const config = getSpriteConfig(spriteName);
+  const autoupdate = await chooseBoolean(tui, "设置 autoupdate", [], Boolean(config.autoupdate));
+  if (autoupdate === null) {
+    return;
+  }
+  config.autoupdate = autoupdate;
+  saveSpriteConfig(spriteName, normalizeSpriteConfig(config));
+  await tui.message({
+    title: "Autoupdate 已更新",
+    lines: [`${spriteName} -> autoupdate=${String(autoupdate)}`],
+  });
+}
+
+async function deleteSpriteFlow(tui, spriteName) {
+  const spriteNames = listSpriteNames();
+  const isDefault = getDefault() === spriteName;
+  let nextDefault = "";
+
+  if (isDefault && spriteNames.length > 1) {
+    nextDefault = await tui.select({
+      title: "当前删除的是默认智能体",
+      description: ["请选择新的默认智能体，或清空默认设置。"],
+      items: [
+        { label: "清空默认设置", value: "__CLEAR__" },
+        ...spriteNames.filter((name) => name !== spriteName).map((name) => ({ label: name, value: name })),
+      ],
+    });
+    if (nextDefault === null) {
+      return;
+    }
+  }
+
+  const confirmed = await tui.confirm({
+    title: "确认删除智能体",
+    lines: [`将删除 sprite '${spriteName}' 目录及其配置。`],
+    confirmLabel: "删除",
+  });
+  if (!confirmed) {
+    return;
+  }
+
+  deleteSprite(spriteName);
+  if (isDefault) {
+    if (nextDefault && nextDefault !== "__CLEAR__") {
+      setDefault(nextDefault);
+    } else {
+      clearDefault();
+    }
+  }
+
+  await tui.message({
+    title: "智能体已删除",
+    lines: [`${spriteName} 已移除。`],
+  });
+}
+
+async function spritesMenu(tui) {
+  while (true) {
+    const defaultSprite = getDefault();
+    const spriteNames = listSpriteNames();
+    const selected = await tui.select({
+      title: "智能体管理",
+      description: ["这里所有主要配置都走列表选择，不要求用户打字。"],
+      items: [
+        { label: "新建智能体", value: "__create__", hint: "支持空白创建或复制现有智能体" },
+        ...spriteNames.map((name) => {
+          const config = getSpriteConfig(name);
+          return {
+            label: name === defaultSprite ? `${name} [默认]` : name,
+            value: name,
+            hint: `${config.cli || "opencode"}  ${config.provider || "-"}  ${config.model || "-"}`,
+          };
+        }),
+        { label: "返回主菜单", value: "__back__" },
+      ],
+    });
+
+    if (selected === null || selected === "__back__") {
+      return;
+    }
+    if (selected === "__create__") {
+      await createSpriteFlow(tui);
+      continue;
+    }
+
+    const action = await tui.select({
+      title: `智能体: ${selected}`,
+      items: [
+        { label: "查看详情", value: "show" },
+        { label: "切换供应商", value: "provider" },
+        { label: "配置技能", value: "skills" },
+        { label: "配置 MCP", value: "mcp" },
+        { label: "切换 CLI", value: "cli" },
+        { label: "切换 Model", value: "model" },
+        { label: "切换 Autoupdate", value: "autoupdate" },
+        { label: "设为默认", value: "default" },
+        { label: "删除智能体", value: "delete" },
+        { label: "返回", value: "back" },
+      ],
+    });
+
+    if (action === null || action === "back") {
+      continue;
+    }
+    if (action === "show") {
+      await showSpriteDetails(tui, selected);
+      continue;
+    }
+    if (action === "provider") {
+      await setSpriteProviderFlow(tui, selected);
+      continue;
+    }
+    if (action === "skills") {
+      await setSpriteSkillsFlow(tui, selected);
+      continue;
+    }
+    if (action === "mcp") {
+      await setSpriteMcpFlow(tui, selected);
+      continue;
+    }
+    if (action === "cli") {
+      await setSpriteCliFlow(tui, selected);
+      continue;
+    }
+    if (action === "model") {
+      await setSpriteModelFlow(tui, selected);
+      continue;
+    }
+    if (action === "autoupdate") {
+      await setSpriteAutoupdateFlow(tui, selected);
+      continue;
+    }
+    if (action === "default") {
+      setDefault(selected);
+      await tui.message({
+        title: "默认智能体已更新",
+        lines: [`${selected} 已设为默认 sprite。`],
+      });
+      continue;
+    }
+    if (action === "delete") {
+      await deleteSpriteFlow(tui, selected);
+    }
+  }
+}
+
+async function worktreeMenu(tui) {
+  const repoRoot = findGitRoot(process.cwd());
+  if (!repoRoot) {
+    await tui.message({
+      title: "当前不在 Git 仓库中",
+      lines: ["请先 `cd` 到一个 git 工作目录，再打开 callcli。"],
+    });
+    return "";
+  }
+
+  while (true) {
+    const currentBranch = getCurrentBranch(repoRoot) || "HEAD(detached)";
+    const action = await tui.select({
+      title: "Worktree 创建器",
+      description: [
+        `仓库: ${repoRoot}`,
+        `当前分支: ${currentBranch}`,
+        "直接修改父 shell 的 cwd 做不到，所以这里支持创建后进入新 worktree 的子 shell。",
+      ],
+      items: [
+        { label: "基于当前分支新建 worktree", value: "new" },
+        { label: "使用现有分支创建 worktree", value: "existing" },
+        { label: "查看现有 worktree", value: "list" },
+        { label: "返回主菜单", value: "back" },
+      ],
+    });
+
+    if (action === null || action === "back") {
+      return "";
+    }
+
+    if (action === "list") {
+      const worktrees = listWorktrees(repoRoot);
+      await tui.message({
+        title: "现有 Worktree",
+        lines: worktrees.length > 0
+          ? worktrees.map((item) => `${item.branch || "detached"} -> ${item.path}`)
+          : ["当前仓库还没有额外 worktree。"],
+      });
+      continue;
+    }
+
+    if (action === "new") {
+      const suggestedBranch = ensureUniqueBranchName(repoRoot, suggestBranchName(repoRoot));
+      const branchName = await tui.input({
+        title: "新建分支并创建 Worktree",
+        description: ["默认使用 codex/ 前缀。", "你也可以在这里覆盖为任意合法分支名。"],
+        label: "分支名",
+        defaultValue: suggestedBranch,
+      });
+      if (branchName === null) {
+        continue;
+      }
+      const worktreePath = await tui.input({
+        title: "设置 Worktree 目录",
+        description: ["默认放在当前仓库同级目录。"],
+        label: "目录",
+        defaultValue: suggestWorktreePath(repoRoot, branchName),
+      });
+      if (worktreePath === null) {
+        continue;
+      }
+
+      const confirmed = await tui.confirm({
+        title: "确认创建 Worktree",
+        lines: [
+          `仓库: ${repoRoot}`,
+          `新分支: ${branchName}`,
+          `目录: ${worktreePath}`,
+        ],
+        confirmLabel: "创建",
+      });
+      if (!confirmed) {
+        continue;
+      }
+
+      createWorktreeForNewBranch(repoRoot, branchName.trim(), path.resolve(worktreePath.trim()), getCurrentBranch(repoRoot) || "HEAD");
+      const nextAction = await tui.select({
+        title: "Worktree 已创建",
+        description: [path.resolve(worktreePath.trim())],
+        items: [
+          { label: "进入新 worktree 的 shell", value: "shell" },
+          { label: "返回主菜单", value: "back" },
+        ],
+      });
+      if (nextAction === "shell") {
+        return path.resolve(worktreePath.trim());
+      }
+      continue;
+    }
+
+    if (action === "existing") {
+      const branches = getAvailableBranchesForWorktree(repoRoot);
+      if (branches.length === 0) {
+        await tui.message({
+          title: "没有可用分支",
+          lines: ["所有本地分支都已经被某个 worktree 占用，或者仓库里还没有分支。"],
+        });
+        continue;
+      }
+
+      const branchName = await tui.select({
+        title: "选择现有分支",
+        items: branches.map((branch) => ({ label: branch, value: branch })),
+      });
+      if (branchName === null) {
+        continue;
+      }
+      const worktreePath = await tui.input({
+        title: "设置 Worktree 目录",
+        description: ["默认放在当前仓库同级目录。"],
+        label: "目录",
+        defaultValue: suggestWorktreePath(repoRoot, branchName),
+      });
+      if (worktreePath === null) {
+        continue;
+      }
+
+      const confirmed = await tui.confirm({
+        title: "确认创建 Worktree",
+        lines: [
+          `现有分支: ${branchName}`,
+          `目录: ${worktreePath}`,
+        ],
+        confirmLabel: "创建",
+      });
+      if (!confirmed) {
+        continue;
+      }
+
+      createWorktreeForExistingBranch(repoRoot, branchName, path.resolve(worktreePath.trim()));
+      const nextAction = await tui.select({
+        title: "Worktree 已创建",
+        description: [path.resolve(worktreePath.trim())],
+        items: [
+          { label: "进入新 worktree 的 shell", value: "shell" },
+          { label: "返回主菜单", value: "back" },
+        ],
+      });
+      if (nextAction === "shell") {
+        return path.resolve(worktreePath.trim());
+      }
+    }
+  }
+}
+
+async function runTui() {
+  const bootstrapped = ensureReady();
+  if (!listProviderNames().length && !listSpriteNames().length) {
+    fail(`初始化配置失败，请检查 ${CONFIG_BASE}`);
+  }
+
+  const tui = new TerminalUI();
+  let shellPath = "";
+  try {
+    tui.enter();
+    if (bootstrapped) {
+      await tui.message({
+        title: "已初始化配置目录",
+        lines: [
+          CONFIG_BASE,
+          "基础 providers / sprites / skillpacks / mcpservers 已复制到用户配置目录。",
+        ],
+      });
+    }
+
+    while (true) {
+      const action = await tui.select({
+        title: "callcli",
+        description: [
+          "进入后先选择要做的事。",
+          `配置目录: ${CONFIG_BASE}`,
+        ],
+        footer: [
+          "↑/↓ 选择  Enter 确认",
+          "Esc 退出",
+        ],
+        items: [
+          { label: "编辑大模型供应商", value: "providers", hint: "name / remark / url / api_key / format 的增删改查" },
+          { label: "编辑智能体", value: "sprites", hint: "通过列表配置 provider / skill / MCP / CLI / model" },
+          { label: "创建 Worktree", value: "worktree", hint: "常用 git worktree add 的交互封装" },
+          { label: "退出", value: "exit" },
+        ],
+      });
+
+      if (action === null || action === "exit") {
+        break;
+      }
+      if (action === "providers") {
+        await providersMenu(tui);
+        continue;
+      }
+      if (action === "sprites") {
+        await spritesMenu(tui);
+        continue;
+      }
+      if (action === "worktree") {
+        shellPath = await worktreeMenu(tui);
+        if (shellPath) {
+          break;
+        }
+      }
+    }
+  } finally {
+    tui.leave();
+  }
+
+  if (shellPath) {
+    launchShell(shellPath);
+  }
+}
+
+async function main() {
+  const args = process.argv.slice(2);
+  if (args.includes("-h") || args.includes("--help") || args.includes("help")) {
+    showHelp();
+    return;
+  }
+
+  try {
+    await runTui();
+  } catch (error) {
+    fail(error.message);
+  }
+}
+
+main();
