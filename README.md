@@ -114,9 +114,9 @@ callcli
 
 ## callcli
 
-`callcli` 是新的 TUI 配置入口，打开后先选主操作，再进入对应流程：
+`callcli` 是新的 TUI 配置入口，已迁到 `Ink` 渲染，整体视觉改成更现代的 Monokai 风格：
 
-- **编辑大模型供应商**：对 `providers.json` 做增删改查，覆盖 `name`、`remark`、`base_url`、`api_key`、`format`
+- **编辑大模型供应商**：对 `providers.json` 做增删改查，覆盖 `name`、`remark`、`base_url`、`api_key`、`format`，并支持字段级编辑
 - **编辑智能体**：列表式配置 `provider`、`skill_links`、`mcp_links`、`cli`、`model`、`autoupdate`
 - **创建 worktree**：对 `git worktree add` 做交互封装，创建成功后可直接进入新 worktree 的子 shell
 
