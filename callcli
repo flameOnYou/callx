@@ -11,6 +11,7 @@ function showHelp() {
 
 说明:
   - 基于 Ink 构建的交互式 TUI
+  - 启动智能体支持两步式选择：先选 sprite，再选普通执行 / 自动化执行
   - Provider 管理支持 name / remark / url / api_key / format 的美观编辑
   - 智能体管理支持 provider / skill / MCP / CLI / model / autoupdate
   - Worktree 创建完成后可直接进入新目录下的子 shell

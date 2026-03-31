@@ -84,7 +84,7 @@ function showHelp() {
 选项:
   -l, --list          列出所有可用 sprite
   -d, --default <名>  设置默认 sprite
-  -a, --auto          自动执行模式
+  -a, --auto          自动执行模式（Claude 会追加 --dangerously-skip-permissions）
   -s, --show          显示当前 sprite 配置
   update              通过 npm 更新 ${COMMAND_NAME}
   -h, --help          显示帮助
@@ -228,8 +228,7 @@ function main() {
   if (cli === "claude") {
     const forwardArgs = [...args.forwardArgs];
     if (args.autoMode) {
-      forwardArgs.unshift("bypassPermissions");
-      forwardArgs.unshift("--permission-mode");
+      forwardArgs.unshift("--dangerously-skip-permissions");
     }
     const env = {
       CLAUDE_CONFIG_DIR: spriteDir,
