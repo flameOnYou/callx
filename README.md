@@ -144,6 +144,22 @@ cat > ~/.config/callx/mcpservers/playwright/mcp.json <<'EOF'
 EOF
 ```
 
+也兼容常见的 `mcpServers` 包装格式，可以直接贴进去：
+
+```json
+{
+  "mcpServers": {
+    "amap-maps": {
+      "command": "npx",
+      "args": ["-y", "@amap/amap-maps-mcp-server"],
+      "env": {
+        "AMAP_MAPS_API_KEY": "${AMAP_MAPS_API_KEY}"
+      }
+    }
+  }
+}
+```
+
 远程服务器：
 
 ```json

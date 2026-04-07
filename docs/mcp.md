@@ -6,7 +6,7 @@
 
 各 sprite 通过 `config.json` 的 `mcp_links` 字段声明需要哪些 MCP 服务器。`call` 启动时读取对应的 MCP 定义，根据目标 CLI 生成格式正确的配置：
 
-- **Claude Code**：在 sprite 目录下生成 `.mcp.json`
+- **Claude Code**：在 sprite 目录下生成 `.mcp.json`，并通过 `--mcp-config` 显式传给 `claude`
 - **OpenCode**：在运行时配置的 `mcp` 字段中注入
 
 **修改 MCP 配置只需改 `mcpservers/`，所有引用该服务器的 sprite 立即生效。**
@@ -25,6 +25,11 @@
 
 每个 MCP 服务器一个目录，目录名即服务器名，内含一个 `mcp.json` 配置文件。
 
+`callx` 现在兼容两种来源格式：
+
+- 原生单服务格式：目录里直接写当前服务定义
+- 常见包装格式：把别的工具里的 `{"mcpServers": {...}}` 片段直接放进来
+
 ## 配置格式
 
 ### 本地服务器（命令启动）
@@ -41,6 +46,24 @@
 }
 ```
 
+也支持直接粘贴常见的包装格式：
+
+```json
+{
+  "mcpServers": {
+    "amap-maps": {
+      "command": "npx",
+      "args": ["-y", "@amap/amap-maps-mcp-server"],
+      "env": {
+        "AMAP_MAPS_API_KEY": "${AMAP_MAPS_API_KEY}"
+      }
+    }
+  }
+}
+```
+
+如果包装格式里的服务名和目录名不一致，且 `mcpServers` 下只有一个条目，`callx` 也会自动取这个唯一条目。
+
 | 字段 | 必填 | 说明 |
 |------|------|------|
 | `type` | 是 | 固定为 `"local"` |
@@ -49,6 +72,12 @@
 | `env` | 否 | 环境变量，支持 `${VAR}` 占位符 |
 | `timeout` | 否 | 工具获取超时时间（毫秒），默认 5000 |
 | `enabled` | 否 | 设为 `false` 可禁用，默认启用 |
+
+兼容写法：
+
+- `command` 也可以直接写成数组，如 `["npx", "-y", "@amap/amap-maps-mcp-server"]`
+- `environment` 会自动视为 `env`
+- `type: "http"` 会自动视为远程服务器
 
 ### 远程服务器（HTTP 连接）
 
@@ -81,6 +110,25 @@ cat > ~/.config/callx/mcpservers/playwright/mcp.json <<'EOF'
   "type": "local",
   "command": "npx",
   "args": ["@playwright/mcp@latest"]
+}
+EOF
+```
+
+或者直接使用常见 MCP 包装格式：
+
+```bash
+mkdir -p ~/.config/callx/mcpservers/amap-maps
+cat > ~/.config/callx/mcpservers/amap-maps/mcp.json <<'EOF'
+{
+  "mcpServers": {
+    "amap-maps": {
+      "command": "npx",
+      "args": ["-y", "@amap/amap-maps-mcp-server"],
+      "env": {
+        "AMAP_MAPS_API_KEY": "${AMAP_MAPS_API_KEY}"
+      }
+    }
+  }
 }
 EOF
 ```
@@ -119,7 +167,7 @@ callx 使用统一格式定义 MCP 服务器，启动时自动转换：
 
 | 统一格式 | Claude Code | OpenCode |
 |---------|------------|----------|
-| `command` + `args` | 保持 `command` + `args` | 合并为 `command` 数组 |
+| `command` + `args` | 写入 `.mcp.json` 的 `mcpServers` 下 | 合并为 `command` 数组 |
 | `env` | 保持 `env` | 重命名为 `environment` |
 | `type: "local"` | 不输出 type | 保持 `type: "local"` |
 | `type: "remote"` | 转为 `type: "http"` | 保持 `type: "remote"` |
